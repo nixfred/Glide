@@ -1,0 +1,10 @@
+/verification/
+/engine/target/
+/engine/.git/
+**/__pycache__/
+*.py[cod]
+.env
+.env.*
+*.pem
+*.key
+*.log

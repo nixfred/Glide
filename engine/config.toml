@@ -1,0 +1,34 @@
+# example configuration
+
+# configure release bind
+release_bind = [ "KeyA", "KeyS", "KeyD", "KeyF" ]
+
+# optional port (defaults to 4242)
+port = 4242
+
+# list of authorized tls certificate fingerprints that
+# are accepted for incoming traffic
+[authorized_fingerprints]
+"bc:05:ab:7a:a4:de:88:8c:2f:92:ac:bc:b8:49:b8:24:0d:44:b3:e6:a4:ef:d7:0b:6c:69:6d:77:53:0b:14:80" = "iridium"
+
+# define a client on the right side with host name "iridium"
+[[clients]]
+# position (left | right | top | bottom)
+position = "right"
+# hostname
+hostname = "iridium"
+# activate this client immediately when lan-mouse is started
+activate_on_startup = true
+# optional list of (known) ip addresses
+ips = ["192.168.178.156"]
+
+# define a client on the left side with IP address 192.168.178.189
+[[clients]]
+position = "left"
+# The hostname is optional: When no hostname is specified,
+# at least one ip address needs to be specified.
+hostname = "thorium"
+# ips for ethernet and wifi
+ips = ["192.168.178.189", "192.168.178.172"]
+# optional port
+port = 4242

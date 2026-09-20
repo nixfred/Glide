@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "nixfred.glide",
+  "name": "Glide",
+  "version": "0.2.1",
+  "author": "Fred Nix",
+  "license": "MIT",
+  "description": "LAN-only mouse and keyboard sharing with authenticated discovery, a visual machine layout and physical mouse and keyboard takeover.",
+  "kinds": ["bar-widget"],
+  "entryPoints": {"barWidget": "Layout.qml"},
+  "barWidget": {
+    "displayName": "Glide",
+    "description": "Mouse and keyboard sharing, live status and pause control",
+    "category": "Input",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

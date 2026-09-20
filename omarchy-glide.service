@@ -1,0 +1,15 @@
+[Unit]
+Description=Omarchy Glide mouse and keyboard sharing
+Documentation=https://github.com/feschber/lan-mouse
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/omarchy-glide-engine daemon
+Restart=on-failure
+RestartSec=3
+UMask=0077
+
+[Install]
+WantedBy=graphical-session.target
