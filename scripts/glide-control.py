@@ -10,6 +10,7 @@ import shlex
 import tomllib
 
 UNIT = 'omarchy-glide.service'
+IDLE_UNIT = 'omarchy-glide-idle.service'
 PLUGIN_SCRIPT = '.config/omarchy/plugins/nixfred.glide/scripts/glide-control.py'
 
 def peer_target():
@@ -101,7 +102,7 @@ def main():
         print(json.dumps(status()))
         return
     if args.action == 'settings':
-        subprocess.run(['systemctl', '--user', 'start', UNIT], check=True, timeout=10)
+        subprocess.run(['systemctl', '--user', 'start', UNIT, IDLE_UNIT], check=True, timeout=10)
         subprocess.Popen(['/usr/bin/lan-mouse'], start_new_session=True,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return
@@ -110,7 +111,10 @@ def main():
         active = subprocess.run(['systemctl', '--user', 'is-active', '--quiet', UNIT], timeout=5).returncode == 0
         action = 'pause' if active else 'resume'
     # Stopping releases captured input and pauses both sending and receiving.
-    subprocess.run(['systemctl', '--user', 'stop' if action == 'pause' else 'start', UNIT], check=True, timeout=10)
+    if action == 'pause':
+        subprocess.run(['systemctl', '--user', 'stop', IDLE_UNIT, UNIT], check=True, timeout=10)
+    else:
+        subprocess.run(['systemctl', '--user', 'start', UNIT, IDLE_UNIT], check=True, timeout=10)
     if not args.local_only:
         ok, error = remote_action(action)
         if not ok:

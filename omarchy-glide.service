@@ -3,6 +3,7 @@ Description=Omarchy Glide mouse and keyboard sharing
 Documentation=https://github.com/feschber/lan-mouse
 PartOf=graphical-session.target
 After=graphical-session.target
+Wants=omarchy-glide-idle.service
 
 [Service]
 Type=simple
