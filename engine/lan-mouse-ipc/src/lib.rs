@@ -180,6 +180,10 @@ pub struct ClientState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FrontendEvent {
+    /// A remote handoff is active on this host.
+    RemoteControlActive,
+    /// No remote handoff is active on this host.
+    RemoteControlInactive,
     /// Glide has returned an active incoming or outgoing handoff to this host.
     LocalOwnershipTaken,
     /// a client was created

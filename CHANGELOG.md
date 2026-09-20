@@ -15,6 +15,7 @@
 - Omarchy-only wording throughout the project documentation.
 - Physical input on the sending Omarchy host now returns control from the remote host, releases the handoff, and centers the pointer on the local display.
 - SSH pairing now transfers the built Glide bundle and installs it on the verified remote Omarchy desktop automatically.
+- Sender-side local takeover is armed only after the remote handoff is acknowledged, so crossing an edge no longer bounces back before the handoff completes.
 
 ## 0.2.0
 

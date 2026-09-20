@@ -24,9 +24,12 @@ class OwnershipTests(unittest.TestCase):
             owner.monitor_center([dict(dpmsStatus=False)])
 
     def test_only_confirmed_takeover_requests_centering(self):
-        self.assertTrue(owner.ownership_acknowledged(b'"LocalOwnershipTaken"'))
+        self.assertFalse(owner.remote_control_state(b'"LocalOwnershipActive"'))
+        self.assertFalse(owner.remote_control_state(b'"LocalOwnershipTaken"'))
+        self.assertTrue(owner.remote_control_state(b'"RemoteControlActive"'))
+        self.assertFalse(owner.remote_control_state(b'"RemoteControlInactive"'))
         for line in [b'{"CaptureStatus":"Enabled"}', b'{"DeviceEntered":{}}', b'null', b'invalid']:
-            self.assertFalse(owner.ownership_acknowledged(line))
+            self.assertIsNone(owner.remote_control_state(line))
 
     def test_center_dispatch_uses_monitor_coordinates(self):
         with patch.object(owner.subprocess, 'run', side_effect=[SimpleNamespace(stdout='[{"width":3840,"height":2160,"x":0,"y":0}]'), SimpleNamespace()]) as run:

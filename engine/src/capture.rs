@@ -24,6 +24,10 @@ pub(crate) struct Capture {
 }
 
 pub(crate) enum ICaptureEvent {
+    /// A remote pointer is actively being driven by this host's physical input.
+    RemoteControlActive,
+    /// The outgoing remote pointer handoff ended.
+    RemoteControlInactive,
     /// A physical input request released an outgoing handoff.
     LocalOwnershipTaken,
     /// a client was entered
@@ -291,6 +295,7 @@ impl CaptureTask {
                         ProtoEvent::Ack(_) => {
                             log::info!("client {handle} acknowledged the connection!");
                             self.state = State::Sending;
+                            self.event_tx.send(ICaptureEvent::RemoteControlActive).expect("channel closed");
                         }
                         // client disconnected
                         ProtoEvent::Leave(_) => {
@@ -424,7 +429,11 @@ impl CaptureTask {
                 log::warn!("failed to send Leave to client {handle}: {e}");
             }
         }
-        capture.release().await
+        let result = capture.release().await;
+        self.event_tx
+            .send(ICaptureEvent::RemoteControlInactive)
+            .expect("channel closed");
+        result
     }
 
     async fn take_local_ownership(

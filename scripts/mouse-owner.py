@@ -77,11 +77,16 @@ def center_pointer():
         print(f'Local control restored; pointer centering failed: {exc}', flush=True)
 
 
-def ownership_acknowledged(data):
+def remote_control_state(data):
     try:
-        return json.loads(data) == 'LocalOwnershipTaken'
+        event = json.loads(data)
+        if event == 'RemoteControlActive':
+            return True
+        if event in ('RemoteControlInactive', 'LocalOwnershipTaken', 'LocalOwnershipActive'):
+            return False
+        return None
     except (ValueError, UnicodeDecodeError):
-        return False
+        return None
 
 
 def main():
@@ -90,17 +95,19 @@ def main():
     ipc = None
     ipc_buffer = b''
     center_at = None
+    remote_active = False
     last_scan = last_connect = last_claim = 0.0
     endpoint = str(Path(os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}')) / 'lan-mouse-socket.sock')
 
     def close_ipc():
-        nonlocal ipc, ipc_buffer, center_at
+        nonlocal ipc, ipc_buffer, center_at, remote_active
         if ipc is not None:
             selector.unregister(ipc)
             ipc.close()
             ipc = None
         ipc_buffer = b''
         center_at = None
+        remote_active = False
 
     while True:
         now = time.monotonic()
@@ -146,7 +153,10 @@ def main():
                         ipc_buffer += data
                         while b'\n' in ipc_buffer:
                             line, ipc_buffer = ipc_buffer.split(b'\n', 1)
-                            if ownership_acknowledged(line):
+                            state = remote_control_state(line)
+                            if state is not None:
+                                remote_active = state
+                            if state is False and line == b'"LocalOwnershipTaken"':
                                 # Allow the compositor to process the engine's
                                 # already-flushed unlock before warping locally.
                                 center_at = time.monotonic() + 0.02
@@ -167,7 +177,7 @@ def main():
                 selector.unregister(device)
                 devices.pop(device.path, None)
                 device.close()
-        if activity and ipc is not None and time.monotonic() - last_claim >= 0.05:
+        if remote_active and activity and ipc is not None and time.monotonic() - last_claim >= 0.05:
             try:
                 ipc.sendall(b'"TakeLocalOwnership"\n')
                 last_claim = time.monotonic()

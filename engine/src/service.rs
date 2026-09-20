@@ -289,6 +289,12 @@ impl Service {
 
     fn handle_emulation_event(&mut self, event: EmulationEvent) {
         match event {
+            EmulationEvent::RemoteControlActive => {
+                self.notify_frontend(FrontendEvent::RemoteControlActive)
+            }
+            EmulationEvent::RemoteControlInactive => {
+                self.notify_frontend(FrontendEvent::RemoteControlInactive)
+            }
             EmulationEvent::LocalOwnershipTaken => {
                 self.notify_frontend(FrontendEvent::LocalOwnershipTaken)
             }
@@ -342,6 +348,12 @@ impl Service {
 
     fn handle_capture_event(&mut self, event: ICaptureEvent) {
         match event {
+            ICaptureEvent::RemoteControlActive => {
+                self.notify_frontend(FrontendEvent::RemoteControlActive)
+            }
+            ICaptureEvent::RemoteControlInactive => {
+                self.notify_frontend(FrontendEvent::RemoteControlInactive)
+            }
             ICaptureEvent::LocalOwnershipTaken => {
                 self.notify_frontend(FrontendEvent::LocalOwnershipTaken)
             }
