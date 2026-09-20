@@ -45,10 +45,10 @@ def input_activity(event):
 
 
 def return_activity(event, edge):
-    """Accept deliberate input away from the capture edge, plus buttons/keys."""
-    if event.type == ec.EV_REL and event.code == ec.REL_X:
-        return event.value > 0 if edge == 'left' else event.value < 0
-    return input_activity(event) and not (event.type == ec.EV_REL and event.code in (ec.REL_X, ec.REL_Y))
+    """Only buttons and keys reclaim; motion is owned by the capture engine."""
+    return event.type == ec.EV_KEY and (
+        (0 < event.code < ec.BTN_MISC and event.value == 1) or
+        event.code in (ec.BTN_LEFT, ec.BTN_RIGHT, ec.BTN_MIDDLE, ec.BTN_TOUCH) and event.value == 1)
 
 
 def capture_edge():

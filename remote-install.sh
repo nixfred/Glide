@@ -10,8 +10,7 @@ cp "$base/remote-install.sh" "$HOME/.config/omarchy/plugins/nixfred.glide/"
 cp "$base"/omarchy-glide*.service "$HOME/.config/systemd/user/"
 python3 "$HOME/.config/omarchy/plugins/nixfred.glide/scripts/setup.py"
 systemctl --user daemon-reload
-systemctl --user disable --now omarchy-glide-owner.service >/dev/null 2>&1 || true
-systemctl --user enable --now omarchy-glide.service omarchy-glide-discovery.service
+systemctl --user enable --now omarchy-glide.service omarchy-glide-owner.service omarchy-glide-discovery.service
 omarchy plugin validate "$HOME/.config/omarchy/plugins/nixfred.glide" >/dev/null
 omarchy-shell shell rescanPlugins >/dev/null 2>&1 || true
 omarchy bar put nixfred.glide --section right >/dev/null 2>&1 || true

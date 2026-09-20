@@ -37,13 +37,9 @@ class OwnershipTests(unittest.TestCase):
         self.assertFalse(owner.takeover_allowed(False, 10.0, 20.0))
         self.assertFalse(owner.takeover_allowed(True, None, 20.0))
 
-    def test_return_motion_must_move_away_from_capture_edge(self):
-        left = SimpleNamespace(type=e.EV_REL, code=e.REL_X, value=-4)
-        right = SimpleNamespace(type=e.EV_REL, code=e.REL_X, value=4)
-        self.assertFalse(owner.return_activity(left, 'left'))
-        self.assertTrue(owner.return_activity(right, 'left'))
-        self.assertTrue(owner.return_activity(left, 'right'))
-        self.assertFalse(owner.return_activity(right, 'right'))
+    def test_motion_never_reclaims_ownership(self):
+        motion = SimpleNamespace(type=e.EV_REL, code=e.REL_X, value=20)
+        self.assertFalse(owner.return_activity(motion, 'left'))
 
     def test_center_dispatch_uses_monitor_coordinates(self):
         with patch.object(owner.subprocess, 'run', side_effect=[SimpleNamespace(stdout='[{"width":3840,"height":2160,"x":0,"y":0}]'), SimpleNamespace()]) as run:

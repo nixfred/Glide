@@ -6,7 +6,7 @@ After=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=%h/.local/bin/omarchy-glide-engine daemon
+ExecStart=/usr/bin/systemd-inhibit --what=idle:sleep --mode=block --who=Glide '--why=Remote mouse control' %h/.local/bin/omarchy-glide-engine daemon
 Restart=on-failure
 RestartSec=3
 UMask=0077

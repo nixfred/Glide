@@ -17,6 +17,7 @@ files={
     'Layout.qml':home/'.config/omarchy/plugins/nixfred.glide/Layout.qml',
     'manifest.json':home/'.config/omarchy/plugins/nixfred.glide/manifest.json',
     'omarchy-glide-owner.service':home/'.config/systemd/user/omarchy-glide-owner.service',
+    'omarchy-glide.service':home/'.config/systemd/user/omarchy-glide.service',
 }
 for name,target in files.items():
     saved=backup/('before-'+name)
@@ -27,8 +28,8 @@ for name,target in files.items():
     os.replace(stage,target)
 subprocess.run(['systemctl','--user','daemon-reload'],check=True)
 subprocess.run(['systemctl','--user','restart','omarchy-glide.service'],check=True)
-subprocess.run(['systemctl','--user','disable','--now','omarchy-glide-owner.service'],check=False)
-subprocess.run(['systemctl','--user','is-active','omarchy-glide.service'],check=True)
+subprocess.run(['systemctl','--user','restart','omarchy-glide-owner.service'],check=True)
+subprocess.run(['systemctl','--user','is-active','omarchy-glide.service','omarchy-glide-owner.service'],check=True)
 after={p:hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in before}
 assert before==after, 'Input configuration unexpectedly changed'
 (backup/'deployment.json').write_text(json.dumps({'protected_unchanged':True,'engine_sha256':hashlib.sha256(files['omarchy-glide-engine'].read_bytes()).hexdigest()},indent=2))
