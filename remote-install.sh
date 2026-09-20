@@ -9,9 +9,10 @@ printf '%s\n' 'Glide needs this Omarchy user’s sudo access to install its depe
 sudo -v || { echo 'Glide remote setup stopped: this account cannot use sudo. Ask an Omarchy administrator to install Glide locally on this machine, then pair again.' >&2; exit 1; }
 omarchy pkg add python-evdev python-dbus python-gobject avahi
 sudo systemctl enable --now avahi-daemon.service
-mkdir -p "$HOME/.local/bin" "$HOME/.config/omarchy/plugins/nixfred.glide/scripts" "$HOME/.config/systemd/user"
+mkdir -p "$HOME/.local/bin" "$HOME/.config/omarchy/plugins/nixfred.glide/scripts" "$HOME/.config/omarchy/plugins/nixfred.glide/assets" "$HOME/.config/systemd/user"
 install -m755 "$base/omarchy-glide-engine" "$HOME/.local/bin/omarchy-glide-engine"
 cp "$base/Layout.qml" "$base/manifest.json" "$HOME/.config/omarchy/plugins/nixfred.glide/"
+cp "$base/assets/glide-icon.png" "$HOME/.config/omarchy/plugins/nixfred.glide/assets/"
 cp "$base"/scripts/*.py "$HOME/.config/omarchy/plugins/nixfred.glide/scripts/"
 cp "$base/remote-install.sh" "$HOME/.config/omarchy/plugins/nixfred.glide/"
 cp "$base"/omarchy-glide*.service "$HOME/.config/systemd/user/"

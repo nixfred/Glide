@@ -236,6 +236,7 @@ def install_remote(peer):
                 (Path.home()/'.local/bin/omarchy-glide-engine', 'omarchy-glide-engine'),
                 (PLUGIN/'Layout.qml', 'Layout.qml'),
                 (PLUGIN/'manifest.json', 'manifest.json'),
+                (PLUGIN/'assets/glide-icon.png', 'assets/glide-icon.png'),
                 (PLUGIN/'scripts', 'scripts'),
                 (PLUGIN/'omarchy-glide.service', 'omarchy-glide.service'),
                 (PLUGIN/'omarchy-glide-owner.service', 'omarchy-glide-owner.service'),

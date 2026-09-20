@@ -131,11 +131,19 @@ Panel {
   Timer { interval: 40; repeat: true; running: root.opened && root.state.running; onTriggered: { root.animationPhase = (root.animationPhase + 0.012) % 1; circuitry.requestPaint() } }
   Timer { interval: 2000; repeat: true; running: true; triggeredOnStart: true; onTriggered: root.refresh() }
   Timer { interval: 5000; repeat: true; running: root.opened; onTriggered: root.scan() }
-  WidgetButton {
+  BarIconButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: "󰍽"
+    text: ""
+    iconComponent: Component {
+      Image {
+        source: Qt.resolvedUrl("assets/glide-icon.png")
+        anchors.fill: parent
+        fillMode: Image.PreserveAspectFit
+        smooth: true
+      }
+    }
     dimmed: !root.state.running
     tooltipText: "Glide · " + root.statusText + "\nLAN mouse and keyboard sharing\nRight-click to pause or resume"
     onPressed: function(b) { if (b === Qt.RightButton) root.act("toggle"); else root.toggle() }
