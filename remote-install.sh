@@ -17,6 +17,7 @@ cp "$base"/scripts/*.py "$HOME/.config/omarchy/plugins/nixfred.glide/scripts/"
 cp "$base/remote-install.sh" "$HOME/.config/omarchy/plugins/nixfred.glide/"
 cp "$base"/omarchy-glide*.service "$HOME/.config/systemd/user/"
 python3 "$HOME/.config/omarchy/plugins/nixfred.glide/scripts/setup.py"
+python3 "$HOME/.config/omarchy/plugins/nixfred.glide/scripts/disable-screensaver-hotcorner.py"
 python3 - <<'PY'
 import json
 from pathlib import Path

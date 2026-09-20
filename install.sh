@@ -10,6 +10,7 @@ mkdir -p "$HOME/.local/bin" "$HOME/.config/systemd/user"
 install -m755 "$base/engine/target/release/lan-mouse" "$HOME/.local/bin/omarchy-glide-engine.new"
 mv "$HOME/.local/bin/omarchy-glide-engine.new" "$HOME/.local/bin/omarchy-glide-engine"
 "$base/scripts/install-plugin.sh"
+python3 "$base/scripts/disable-screensaver-hotcorner.py"
 cp "$base"/omarchy-glide*.service "$HOME/.config/systemd/user/"
 # Grant only the active local session access; never add users to the input group.
 if ! id -nG | tr ' ' '\n' | rg -qx input; then
