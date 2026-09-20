@@ -10,6 +10,7 @@
 - Pause and resume mirror to every paired machine, not only the first one in the layout.
 - The bar shows the paired machine's name again, resolved from the verified layout when the managed engine config carries no hostname.
 - The machine certificate is hashed once per revision instead of on every discovery poll, cutting each identity check from 43 ms to 27 ms.
+- Removed code nothing ran: `Glide.qml` (a stale duplicate of `Layout.qml`), `scripts/bootstrap.sh`, `scripts/pair.py`, and the retired `scripts/mouse-owner.py` with `omarchy-glide-owner.service`. Installing or updating clears the old unit from machines that still carry it.
 
 ## 0.2.2
 

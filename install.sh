@@ -31,6 +31,7 @@ systemctl --user daemon-reload
 # Lan Mouse is the sole capture/emulation owner. A second evdev watcher feeds
 # injected remote pointer events back into takeover; never enable it.
 systemctl --user disable --now omarchy-glide-owner.service >/dev/null 2>&1 || true
+rm -f "$HOME/.config/systemd/user/omarchy-glide-owner.service"
 systemctl --user enable --now omarchy-glide.service omarchy-glide-discovery.service omarchy-glide-idle.service
 # Let Omarchy finish its asynchronous plugin inventory refresh.
 for attempt in {1..12}; do

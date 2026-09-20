@@ -6,6 +6,8 @@ if [[ -L "$target" ]]; then
   unlink "$target"
 fi
 mkdir -p "$target/scripts" "$target/assets"
+# An earlier layout kept the helpers at the plugin root; drop those shadows.
+rm -f "$target"/glide_network.py "$target"/network.py
 cp "$source_dir/Layout.qml" "$target/Layout.qml"
 cp "$source_dir"/scripts/*.py "$target/scripts/"
 cp "$source_dir/remote-install.sh" "$target/remote-install.sh"
