@@ -197,7 +197,7 @@ def restore_local(old):
     run(['systemctl','--user','try-restart',SERVICE])
 
 
-def ssh_args(peer, interactive=False):
+def ssh_args(peer, interactive=False, tty=False):
     if not on_lan(peer['ip']): raise ValueError('Peer is not on a physical LAN')
     trust = read_json(CONFIG/'trust.json', {}).get(peer['id'], {})
     alias = trust.get('alias', peer['ip'])
@@ -206,6 +206,7 @@ def ssh_args(peer, interactive=False):
     args = ['ssh', '-o', 'HostName='+peer['ip'], '-o', 'Port=22', '-o', 'ProxyJump=none', '-o', 'ProxyCommand=none', '-o', 'PermitLocalCommand=no', '-o', 'ControlMaster=auto', '-o', 'ControlPersist=600', '-o', 'ControlPath='+str(CONFIG/'ssh-%C'), '-o', 'ConnectTimeout=5', '-o', 'ConnectionAttempts=1', '-o', 'ClearAllForwardings=yes',
             '-o', 'StrictHostKeyChecking='+('ask' if interactive else 'yes'), '-o', 'HostKeyAlias='+alias]
     if not interactive: args += ['-o','BatchMode=yes']
+    if tty: args += ['-tt']
     return args + [peer['user']+'@'+peer['ip']]
 
 
@@ -254,10 +255,11 @@ def install_remote(peer):
             raise ValueError(f"{peer['name']}: bundle transfer failed: {error}")
     finally:
         if pipe.stdin and not pipe.stdin.closed: pipe.stdin.close()
-    installed = run(ssh_args(peer) + ['bash', staging+'/remote-install.sh'], timeout=90)
+    print('Installing Glide on the remote Omarchy desktop. SSH may ask for its sudo password…', flush=True)
+    installed = subprocess.run(ssh_args(peer, interactive=True, tty=True) + ['bash', staging+'/remote-install.sh'], timeout=180)
     if installed.returncode:
-        raise ValueError(f"{peer['name']}: remote Glide installation failed: {installed.stderr.strip()[-350:]}")
-    return installed.stdout.strip()
+        raise ValueError(f"{peer['name']}: remote Glide installation failed")
+    return 'Remote Glide installation completed.'
 
 
 def deploy(layout):

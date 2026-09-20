@@ -44,10 +44,21 @@ Glide uses Lan Mouse's single capture/emulation ownership state machine. It does
 
 An unrelated existing Lan Mouse configuration is not overwritten. Back it up and move it before installing. Do not run another Lan Mouse daemon alongside Glide: both use the same IPC socket and configuration directory.
 
+## SSH requirements
+
+You install Glide once on the Omarchy desktop you are using. For each additional Omarchy desktop, Glide needs:
+
+- SSH server access on the LAN (`ssh user@machine` must work).
+- The remote host-key prompt accepted once, and a password or SSH key that can log in as that user.
+- An active Omarchy user session; it does not need to be the focused desktop while pairing.
+- Direct private-LAN IPv4 reachability. VPN, public-IP, and IPv6-only paths are not supported.
+
+Glide verifies the SSH host identity interactively, transfers the already-built Glide bundle, installs the remote user services, and starts them. You do not separately install Glide on every machine. SSH access is only used for installation and layout updates; mouse traffic uses the paired DTLS connection on UDP 4242.
+
 ## Set up your desk
 
 1. Open the mouse icon in the Omarchy bar.
-2. Select a nearby Omarchy machine and choose **Install & authorize**. Verify its SSH host identity before accepting it; Glide installs itself there over that authenticated SSH connection.
+2. Select a nearby Omarchy machine and choose **Install & authorize**. The terminal asks for the normal SSH host-key confirmation and login authentication. Verify the host identity before accepting it; Glide installs itself there over that authenticated SSH connection.
 3. Choose **Add selected**, then drag the machine to match its physical position.
 4. Choose **Apply layout**. Repeat for any additional computers.
 5. Cross the corresponding screen edge to start sharing.

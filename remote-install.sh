@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 base="$HOME/.local/share/omarchy-glide-install"
-: "${OMARCHY_PATH:?Remote install requires an Omarchy desktop}"
-mkdir -p "$HOME/.local/bin" "$HOME/.config/omarchy/plugins/nixfred.glide" "$HOME/.config/systemd/user"
+# SSH does not load the graphical session environment. Use Omarchy's stable
+# system path when OMARCHY_PATH was not exported into the noninteractive shell.
+export OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+command -v omarchy >/dev/null || { echo 'Remote install requires Omarchy.' >&2; exit 1; }
+omarchy pkg add python-evdev python-dbus python-gobject avahi
+sudo systemctl enable --now avahi-daemon.service
+mkdir -p "$HOME/.local/bin" "$HOME/.config/omarchy/plugins/nixfred.glide/scripts" "$HOME/.config/systemd/user"
 install -m755 "$base/omarchy-glide-engine" "$HOME/.local/bin/omarchy-glide-engine"
 cp "$base/Layout.qml" "$base/manifest.json" "$HOME/.config/omarchy/plugins/nixfred.glide/"
 cp "$base"/scripts/*.py "$HOME/.config/omarchy/plugins/nixfred.glide/scripts/"
