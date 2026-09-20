@@ -5,7 +5,7 @@
 <p align="center"><strong>Mouse and keyboard sharing for OMARCHY.</strong><br>Move to the edge. Keep working.</p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.2.1-c5ff36?style=flat-square&labelColor=111111">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.2.3-c5ff36?style=flat-square&labelColor=111111">
   <img alt="Platform" src="https://img.shields.io/badge/platform-Omarchy%20%2F%20Hyprland-c5ff36?style=flat-square&labelColor=111111">
   <img alt="Network" src="https://img.shields.io/badge/network-LAN%20only-c5ff36?style=flat-square&labelColor=111111">
 </p>
@@ -21,7 +21,6 @@ Glide is an Omarchy plugin. It lets your pointer cross from one Omarchy computer
 | **Discover nearby sessions** | Find active Glide desktops on your physical private LAN. Discovery never grants permission to control a machine. |
 | **Pair through SSH** | Verify each device's identity through your SSH login before applying a layout. |
 | **Apply one layout** | Distribute the arrangement to participating machines, with rollback attempted if deployment fails. |
-| **Emergency return** | Press **Left Ctrl + Left Shift + Esc** on the sending keyboard to release capture. |
 | **Pause from the bar** | Check live status and pause or resume sharing. Right-click the bar icon for a quick toggle; the action is synchronized to the paired machine over the verified SSH link. |
 | **Encrypted connections** | The bundled engine uses DTLS with paired certificate fingerprints in both directions. |
 | **Emergency return** | Press **Left Ctrl + Left Shift + Esc** on the sending keyboard to release capture. |

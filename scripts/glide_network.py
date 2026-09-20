@@ -72,8 +72,10 @@ def session_active():
     if run(['systemctl', '--user', 'is-active', '--quiet', 'graphical-session.target']).returncode: return False
     try:
         monitors = json.loads(run(['hyprctl', '-i', '0', '-j', 'monitors']).stdout)
-        if not monitors or any('LOCK' in m.get('solitaryBlockedBy', []) for m in monitors): return False
-    except (ValueError, OSError): return False
+        # Hyprland reports solitaryBlockedBy as null when nothing blocks direct
+        # scanout, so default it rather than trusting the key to hold a list.
+        if not monitors or any('LOCK' in (m.get('solitaryBlockedBy') or []) for m in monitors): return False
+    except (ValueError, OSError, TypeError, KeyError, AttributeError): return False
     sessions = run(['loginctl', 'list-sessions', '--no-legend']).stdout.splitlines()
     for line in sessions:
         cols = line.split()
@@ -84,11 +86,30 @@ def session_active():
     return False
 
 
+_DIGEST_CACHE = {}
+
+
+def certificate_digest(pem):
+    """Hash the machine certificate once per revision.
+
+    Discovery calls identity() every few seconds; the certificate is written
+    once at setup and read-only afterwards, so key the cache on its identity
+    and mtime and re-run openssl only when the file actually changes.
+    """
+    try: stamp = pem.stat()
+    except OSError: raise ValueError('Start Glide once to create this machine’s identity.')
+    key = (stamp.st_ino, stamp.st_mtime_ns, stamp.st_size)
+    if key not in _DIGEST_CACHE:
+        cert = run(['openssl', 'x509', '-in', str(pem), '-outform', 'DER'], text=False)
+        if cert.returncode: raise ValueError('Start Glide once to create this machine’s identity.')
+        _DIGEST_CACHE.clear()
+        _DIGEST_CACHE[key] = hashlib.sha256(cert.stdout).hexdigest()
+    return _DIGEST_CACHE[key]
+
+
 def identity():
     pem = Path.home() / '.config/lan-mouse/lan-mouse.pem'
-    cert = run(['openssl', 'x509', '-in', str(pem), '-outform', 'DER'], text=False)
-    if cert.returncode: raise ValueError('Start Glide once to create this machine’s identity.')
-    digest = hashlib.sha256(cert.stdout).hexdigest()
+    digest = certificate_digest(pem)
     fingerprint = ':'.join(digest[n:n+2] for n in range(0, 64, 2))
     links = interfaces()
     return {'id': digest[:32], 'name': socket.gethostname(), 'user': getpass.getuser(),

@@ -13,7 +13,7 @@ mv "$HOME/.local/bin/omarchy-glide-engine.new" "$HOME/.local/bin/omarchy-glide-e
 python3 "$base/scripts/disable-screensaver-hotcorner.py"
 cp "$base"/omarchy-glide*.service "$HOME/.config/systemd/user/"
 # Grant only the active local session access; never add users to the input group.
-if ! id -nG | tr ' ' '\n' | rg -qx input; then
+if ! id -nG | tr ' ' '\n' | grep -qx input; then
   rule=$(mktemp)
   trap 'rm -f "$rule"' EXIT
   cat > "$rule" <<'RULE'
@@ -28,7 +28,9 @@ fi
 sudo systemctl enable --now avahi-daemon.service
 python3 "$base/scripts/firewall.py"
 systemctl --user daemon-reload
-systemctl --user enable omarchy-glide-owner.service
+# Lan Mouse is the sole capture/emulation owner. A second evdev watcher feeds
+# injected remote pointer events back into takeover; never enable it.
+systemctl --user disable --now omarchy-glide-owner.service >/dev/null 2>&1 || true
 systemctl --user enable --now omarchy-glide.service omarchy-glide-discovery.service omarchy-glide-idle.service
 # Let Omarchy finish its asynchronous plugin inventory refresh.
 for attempt in {1..12}; do

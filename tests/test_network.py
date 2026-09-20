@@ -1,4 +1,5 @@
 import copy
+import json
 import sys
 import tempfile
 import unittest
@@ -83,3 +84,34 @@ class NetworkTests(unittest.TestCase):
             self.assertEqual(p.stat().st_mode & 0o777,0o600)
 
 if __name__=='__main__': unittest.main()
+
+
+class SessionActiveTests(unittest.TestCase):
+    """Hyprland reports solitaryBlockedBy as null when nothing blocks scanout."""
+
+    def _hypr(self, monitors):
+        class Result:
+            def __init__(self, stdout='', returncode=0):
+                self.stdout, self.returncode = stdout, returncode
+
+        def fake(argv, **kw):
+            if argv[0] == 'systemctl': return Result(returncode=0)
+            if argv[0] == 'hyprctl': return Result(stdout=json.dumps(monitors))
+            if argv[:2] == ['loginctl', 'list-sessions']: return Result(stdout='3 1000 pi seat0 tty2\n')
+            return Result(stdout='Active=yes\nRemote=no\nLockedHint=no\n')
+        return fake
+
+    def test_null_solitary_block_does_not_raise(self):
+        with patch.object(g, 'run', self._hypr([{'name': 'DVI-I-1', 'solitaryBlockedBy': None}])), \
+             patch.object(g.os, 'getuid', return_value=1000):
+            self.assertTrue(g.session_active())
+
+    def test_lock_block_still_reports_inactive(self):
+        with patch.object(g, 'run', self._hypr([{'name': 'DVI-I-1', 'solitaryBlockedBy': ['LOCK']}])), \
+             patch.object(g.os, 'getuid', return_value=1000):
+            self.assertFalse(g.session_active())
+
+    def test_missing_key_is_treated_as_unblocked(self):
+        with patch.object(g, 'run', self._hypr([{'name': 'DVI-I-1'}])), \
+             patch.object(g.os, 'getuid', return_value=1000):
+            self.assertTrue(g.session_active())

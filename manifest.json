@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "nixfred.glide",
   "name": "Glide",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "author": "Fred Nix",
   "license": "MIT",
   "description": "Omarchy mouse and keyboard sharing with authenticated discovery, a visual machine layout and instant local return.",

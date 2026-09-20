@@ -15,7 +15,7 @@ links=interfaces()
 if not links: raise SystemExit('No physical LAN connected')
 owned=read_json(STATE/'firewall-rules.json',[])
 for link in links:
-    for destination,port in [(links[0]['ip'],'4242'),('any','5353')]:
+    for destination,port in [(link['ip'],'4242'),('any','5353')]:
         rule=['allow','in','on',link['name'],'from',link['network'],'to',destination,'port',port,'proto','udp','comment','Omarchy Glide LAN']
         result=subprocess.run(['sudo','ufw']+rule,check=True,capture_output=True,text=True)
         print(result.stdout.strip())

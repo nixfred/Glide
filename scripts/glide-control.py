@@ -13,44 +13,52 @@ UNIT = 'omarchy-glide.service'
 IDLE_UNIT = 'omarchy-glide-idle.service'
 PLUGIN_SCRIPT = '.config/omarchy/plugins/nixfred.glide/scripts/glide-control.py'
 
-def peer_target():
-    """Return the paired SSH target from Glide's verified layout."""
+def peer_targets():
+    """Return every paired SSH target from Glide's verified layout."""
     layout = Path.home() / '.config/omarchy-glide/layout.json'
     try:
         data = json.loads(layout.read_text())
         machines = data.get('machines', [])
-        me = socket.gethostname()
-        peer = next((m for m in machines if m.get('name') != me), None)
-        if not peer:
-            return None
-        user = peer.get('user', '')
-        ip = peer.get('ip', '')
-        if not user or not ip:
-            return None
-        return user, ip
     except (OSError, ValueError, TypeError):
-        return None
+        return []
+    me = socket.gethostname()
+    targets = []
+    for machine in machines:
+        if not isinstance(machine, dict) or machine.get('name') == me:
+            continue
+        user, ip = machine.get('user', ''), machine.get('ip', '')
+        if user and ip:
+            targets.append((machine.get('name', ip), user, ip))
+    return targets
 
 def remote_action(action):
-    target = peer_target()
-    if not target:
+    """Mirror a pause or resume onto every paired machine, not just the first."""
+    targets = peer_targets()
+    if not targets:
         return False, 'No paired SSH target is available'
-    user, ip = target
     command = (
         "uid=$(id -u); "
         "export XDG_RUNTIME_DIR=/run/user/$uid; "
         "export DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus; "
         f"python3 {shlex.quote(PLUGIN_SCRIPT)} --local-only {shlex.quote(action)}"
     )
-    args = [
-        'ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5',
-        '-o', 'ConnectionAttempts=1', '-o', 'ClearAllForwardings=yes',
-        f'{user}@{ip}', command,
-    ]
-    result = subprocess.run(args, capture_output=True, text=True, timeout=12)
-    if result.returncode:
-        detail = (result.stderr or result.stdout).strip().splitlines()
-        return False, detail[-1] if detail else f'SSH exited {result.returncode}'
+    failures = []
+    for name, user, ip in targets:
+        args = [
+            'ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5',
+            '-o', 'ConnectionAttempts=1', '-o', 'ClearAllForwardings=yes',
+            f'{user}@{ip}', command,
+        ]
+        try:
+            result = subprocess.run(args, capture_output=True, text=True, timeout=12)
+        except subprocess.TimeoutExpired:
+            failures.append(f'{name}: timed out')
+            continue
+        if result.returncode:
+            detail = (result.stderr or result.stdout).strip().splitlines()
+            failures.append(f'{name}: ' + (detail[-1] if detail else f'SSH exited {result.returncode}'))
+    if failures:
+        return False, '; '.join(failures)
     return True, ''
 
 def status():
@@ -59,8 +67,12 @@ def status():
     try:
         config = tomllib.loads((Path.home() / '.config/lan-mouse/config.toml').read_text())
         clients = config.get('clients', [])
+        names = {ip: name for name, _user, ip in peer_targets()}
         if clients:
-            result.update(peer=clients[0].get('hostname', ''), position=clients[0].get('position', 'left'))
+            addresses = clients[0].get('ips', [])
+            fallback = names.get(addresses[0], '') if addresses else ''
+            result.update(peer=clients[0].get('hostname', '') or fallback,
+                          position=clients[0].get('position', 'left'))
         with socket.socket(socket.AF_UNIX) as sock:
             sock.settimeout(1)
             sock.connect(str(Path(os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}')) / 'lan-mouse-socket.sock'))
@@ -79,8 +91,10 @@ def status():
                         result['connected'] = any(entry[2]['alive'] for entry in entries)
                         if entries:
                             _, conf, state = entries[0]
-                            result.update(peer=conf.get('hostname', ''), position=conf['pos'],
-                                          active=state['active'])
+                            addresses = conf.get('ips', [])
+                            fallback = next((names[a] for a in addresses if a in names), '')
+                            result.update(peer=conf.get('hostname', '') or fallback,
+                                          position=conf['pos'], active=state['active'])
                     if 'CaptureStatus' in event:
                         capture = event['CaptureStatus'] == 'Enabled'
                     if 'EmulationStatus' in event:
