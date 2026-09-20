@@ -14,6 +14,8 @@ import time
 import evdev
 from evdev import ecodes as ec
 
+HANDOFF_SETTLE_SECONDS = 0.4
+
 
 def physical_pointer(device):
     # uinput devices would feed received or generated events back into ownership.
@@ -89,6 +91,12 @@ def remote_control_state(data):
         return None
 
 
+def takeover_allowed(remote_active, active_since, now):
+    """Ignore edge residual motion while the compositor finishes the handoff."""
+    return (remote_active and active_since is not None and
+            now - active_since >= HANDOFF_SETTLE_SECONDS)
+
+
 def main():
     selector = selectors.DefaultSelector()
     devices = {}
@@ -96,11 +104,12 @@ def main():
     ipc_buffer = b''
     center_at = None
     remote_active = False
+    remote_active_since = None
     last_scan = last_connect = last_claim = 0.0
     endpoint = str(Path(os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}')) / 'lan-mouse-socket.sock')
 
     def close_ipc():
-        nonlocal ipc, ipc_buffer, center_at, remote_active
+        nonlocal ipc, ipc_buffer, center_at, remote_active, remote_active_since
         if ipc is not None:
             selector.unregister(ipc)
             ipc.close()
@@ -108,6 +117,7 @@ def main():
         ipc_buffer = b''
         center_at = None
         remote_active = False
+        remote_active_since = None
 
     while True:
         now = time.monotonic()
@@ -156,6 +166,7 @@ def main():
                             state = remote_control_state(line)
                             if state is not None:
                                 remote_active = state
+                                remote_active_since = time.monotonic() if state else None
                             if state is False and line == b'"LocalOwnershipTaken"':
                                 # Allow the compositor to process the engine's
                                 # already-flushed unlock before warping locally.
@@ -177,7 +188,9 @@ def main():
                 selector.unregister(device)
                 devices.pop(device.path, None)
                 device.close()
-        if remote_active and activity and ipc is not None and time.monotonic() - last_claim >= 0.05:
+        now = time.monotonic()
+        if (takeover_allowed(remote_active, remote_active_since, now) and
+                activity and ipc is not None and now - last_claim >= 0.05):
             try:
                 ipc.sendall(b'"TakeLocalOwnership"\n')
                 last_claim = time.monotonic()

@@ -31,6 +31,12 @@ class OwnershipTests(unittest.TestCase):
         for line in [b'{"CaptureStatus":"Enabled"}', b'{"DeviceEntered":{}}', b'null', b'invalid']:
             self.assertIsNone(owner.remote_control_state(line))
 
+    def test_edge_motion_settles_before_local_takeover(self):
+        self.assertFalse(owner.takeover_allowed(True, 10.0, 10.39))
+        self.assertTrue(owner.takeover_allowed(True, 10.0, 10.40))
+        self.assertFalse(owner.takeover_allowed(False, 10.0, 20.0))
+        self.assertFalse(owner.takeover_allowed(True, None, 20.0))
+
     def test_center_dispatch_uses_monitor_coordinates(self):
         with patch.object(owner.subprocess, 'run', side_effect=[SimpleNamespace(stdout='[{"width":3840,"height":2160,"x":0,"y":0}]'), SimpleNamespace()]) as run:
             owner.center_pointer()
