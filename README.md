@@ -53,7 +53,7 @@ You install Glide once on the Omarchy desktop you are using. For each additional
 - An active Omarchy user session; it does not need to be the focused desktop while pairing.
 - Direct private-LAN IPv4 reachability. VPN, public-IP, and IPv6-only paths are not supported.
 
-Glide verifies the SSH host identity interactively, transfers the already-built Glide bundle, installs the remote user services, and starts them. You do not separately install Glide on every machine. SSH access is only used for installation and layout updates; mouse traffic uses the paired DTLS connection on UDP 4242.
+Glide verifies the SSH host identity interactively, transfers the already-built Glide bundle, asks for the remote user’s sudo password in the SSH terminal, installs the remote dependencies and user services, and starts them. If that account cannot use sudo, Glide stops with a clear error and the remote machine must be installed by an Omarchy administrator first. You do not separately install Glide on every machine. SSH access is only used for installation and layout updates; mouse traffic uses the paired DTLS connection on UDP 4242.
 
 ## Set up your desk
 

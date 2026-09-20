@@ -5,6 +5,8 @@ base="$HOME/.local/share/omarchy-glide-install"
 # system path when OMARCHY_PATH was not exported into the noninteractive shell.
 export OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
 command -v omarchy >/dev/null || { echo 'Remote install requires Omarchy.' >&2; exit 1; }
+printf '%s\n' 'Glide needs this Omarchy user’s sudo access to install its dependencies and Avahi.'
+sudo -v || { echo 'Glide remote setup stopped: this account cannot use sudo. Ask an Omarchy administrator to install Glide locally on this machine, then pair again.' >&2; exit 1; }
 omarchy pkg add python-evdev python-dbus python-gobject avahi
 sudo systemctl enable --now avahi-daemon.service
 mkdir -p "$HOME/.local/bin" "$HOME/.config/omarchy/plugins/nixfred.glide/scripts" "$HOME/.config/systemd/user"
@@ -14,8 +16,23 @@ cp "$base"/scripts/*.py "$HOME/.config/omarchy/plugins/nixfred.glide/scripts/"
 cp "$base/remote-install.sh" "$HOME/.config/omarchy/plugins/nixfred.glide/"
 cp "$base"/omarchy-glide*.service "$HOME/.config/systemd/user/"
 python3 "$HOME/.config/omarchy/plugins/nixfred.glide/scripts/setup.py"
+python3 - <<'PY'
+import json
+from pathlib import Path
+p = Path.home()/'.local/state/omarchy/glide/install.json'
+p.parent.mkdir(parents=True, exist_ok=True)
+p.write_text(json.dumps({'bundle': True, 'admin': True, 'units': False}))
+PY
 systemctl --user daemon-reload
 systemctl --user enable --now omarchy-glide.service omarchy-glide-owner.service omarchy-glide-discovery.service
+python3 - <<'PY'
+import json
+from pathlib import Path
+p = Path.home()/'.local/state/omarchy/glide/install.json'
+data = json.loads(p.read_text())
+data['units'] = True
+p.write_text(json.dumps(data))
+PY
 omarchy plugin validate "$HOME/.config/omarchy/plugins/nixfred.glide" >/dev/null
 omarchy-shell shell rescanPlugins >/dev/null 2>&1 || true
 omarchy bar put nixfred.glide --section right >/dev/null 2>&1 || true
