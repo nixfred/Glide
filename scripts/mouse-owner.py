@@ -44,6 +44,24 @@ def input_activity(event):
         event.type == ec.EV_KEY and 0 < event.code < ec.BTN_MISC and event.value == 1)
 
 
+def return_activity(event, edge):
+    """Accept deliberate input away from the capture edge, plus buttons/keys."""
+    if event.type == ec.EV_REL and event.code == ec.REL_X:
+        return event.value > 0 if edge == 'left' else event.value < 0
+    return input_activity(event) and not (event.type == ec.EV_REL and event.code in (ec.REL_X, ec.REL_Y))
+
+
+def capture_edge():
+    try:
+        config = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))) / 'lan-mouse/config.toml'
+        for line in config.read_text().splitlines():
+            if line.strip().startswith('position ='):
+                return line.split('=', 1)[1].strip().strip('"')
+    except OSError:
+        pass
+    return 'left'
+
+
 def pointer_activity(event):
     if event.type == ec.EV_REL:
         return event.code in (ec.REL_X, ec.REL_Y, ec.REL_WHEEL, ec.REL_HWHEEL) and event.value != 0
@@ -105,6 +123,7 @@ def main():
     center_at = None
     remote_active = False
     remote_active_since = None
+    edge = capture_edge()
     last_scan = last_connect = last_claim = 0.0
     endpoint = str(Path(os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}')) / 'lan-mouse-socket.sock')
 
@@ -181,7 +200,7 @@ def main():
             device = key.fileobj
             try:
                 for event in device.read():
-                    activity = input_activity(event) or activity
+                    activity = return_activity(event, edge) or activity
             except BlockingIOError:
                 pass
             except OSError:

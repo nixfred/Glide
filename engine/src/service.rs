@@ -290,10 +290,10 @@ impl Service {
     fn handle_emulation_event(&mut self, event: EmulationEvent) {
         match event {
             EmulationEvent::RemoteControlActive => {
-                self.notify_frontend(FrontendEvent::RemoteControlActive)
+                // Receiver input stays passive; the sender owns the return gesture.
             }
             EmulationEvent::RemoteControlInactive => {
-                self.notify_frontend(FrontendEvent::RemoteControlInactive)
+                // Receiver input stays passive; the sender owns the return gesture.
             }
             EmulationEvent::LocalOwnershipTaken => {
                 self.notify_frontend(FrontendEvent::LocalOwnershipTaken)
