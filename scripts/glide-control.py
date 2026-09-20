@@ -69,9 +69,9 @@ def status():
         clients = config.get('clients', [])
         names = {ip: name for name, _user, ip in peer_targets()}
         if clients:
-            addresses = clients[0].get('ips', [])
-            fallback = names.get(addresses[0], '') if addresses else ''
-            result.update(peer=clients[0].get('hostname', '') or fallback,
+            addresses = clients[0].get('ips') or []
+            fallback = next((names[a] for a in addresses if a in names), '')
+            result.update(peer=clients[0].get('hostname') or fallback,
                           position=clients[0].get('position', 'left'))
         with socket.socket(socket.AF_UNIX) as sock:
             sock.settimeout(1)
@@ -91,9 +91,11 @@ def status():
                         result['connected'] = any(entry[2]['alive'] for entry in entries)
                         if entries:
                             _, conf, state = entries[0]
-                            addresses = conf.get('ips', [])
+                            # The IPC client config names its static addresses
+                            # fix_ips; only the runtime state calls them ips.
+                            addresses = (conf.get('fix_ips') or []) + (state.get('ips') or [])
                             fallback = next((names[a] for a in addresses if a in names), '')
-                            result.update(peer=conf.get('hostname', '') or fallback,
+                            result.update(peer=conf.get('hostname') or fallback,
                                           position=conf['pos'], active=state['active'])
                     if 'CaptureStatus' in event:
                         capture = event['CaptureStatus'] == 'Enabled'
