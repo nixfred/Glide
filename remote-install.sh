@@ -25,7 +25,7 @@ p.parent.mkdir(parents=True, exist_ok=True)
 p.write_text(json.dumps({'bundle': True, 'admin': True, 'units': False}))
 PY
 systemctl --user daemon-reload
-systemctl --user enable --now omarchy-glide.service omarchy-glide-owner.service omarchy-glide-discovery.service
+systemctl --user enable --now omarchy-glide.service omarchy-glide-owner.service omarchy-glide-discovery.service omarchy-glide-idle.service
 python3 - <<'PY'
 import json
 from pathlib import Path

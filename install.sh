@@ -28,7 +28,7 @@ sudo systemctl enable --now avahi-daemon.service
 python3 "$base/scripts/firewall.py"
 systemctl --user daemon-reload
 systemctl --user enable omarchy-glide-owner.service
-systemctl --user enable --now omarchy-glide.service omarchy-glide-discovery.service
+systemctl --user enable --now omarchy-glide.service omarchy-glide-discovery.service omarchy-glide-idle.service
 # Let Omarchy finish its asynchronous plugin inventory refresh.
 for attempt in {1..12}; do
   if omarchy plugin list --json | jq -e '.[] | select(.id=="nixfred.glide")' >/dev/null; then break; fi

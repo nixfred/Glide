@@ -1,0 +1,15 @@
+[Unit]
+Description=Keep the Omarchy idle saver off while Glide is installed
+PartOf=omarchy-glide.service
+After=omarchy-glide.service graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/bin/sh -c 'while systemctl --user is-active --quiet omarchy-glide.service; do omarchy-shell idle disable >/dev/null 2>&1 || true; sleep 20; done'
+ExecStopPost=/bin/sh -c 'omarchy-shell idle enable >/dev/null 2>&1 || true'
+Restart=on-failure
+RestartSec=3
+UMask=0077
+
+[Install]
+WantedBy=graphical-session.target
