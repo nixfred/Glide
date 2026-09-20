@@ -234,6 +234,7 @@ fn build_ui(app: &Application) {
             loop {
                 let notify = receiver.recv().await.unwrap_or_else(|_| process::exit(1));
                 match notify {
+                    FrontendEvent::LocalOwnershipTaken => {}
                     FrontendEvent::Created(handle, client, state) => {
                         window.new_client(handle, client, state)
                     }

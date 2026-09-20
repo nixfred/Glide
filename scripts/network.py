@@ -18,6 +18,8 @@ def main():
         print(f"Authorize Glide on {found['name']} ({found['ip']}) as {found['user']}.\nSSH will ask you to verify its host identity and authenticate.\n", flush=True)
         outcome = subprocess.run(ssh_args(found, interactive=True) + ['true'])
         if outcome.returncode: raise ValueError('SSH authorization was not completed')
+        print('SSH verified. Installing Glide on the remote Omarchy desktop…', flush=True)
+        install_remote(found)
         # Reuse the authenticated SSH connection for subsequent layout updates.
         actual = remote(found, 'identity')
         if actual['fingerprint'] != found['fingerprint']: raise ValueError('Advertised certificate differs from the authenticated machine')

@@ -24,6 +24,7 @@ pub(crate) struct Emulation {
 }
 
 pub(crate) enum EmulationEvent {
+    LocalOwnershipTaken,
     Connected {
         addr: SocketAddr,
         fingerprint: String,
@@ -201,11 +202,16 @@ impl ListenTask {
                         self.listener.reply(addr, ProtoEvent::Leave(0)).await;
                     },
                     EmulationRequest::TakeLocalOwnership => {
-                        for addr in ownership.take_local() {
+                        let revoked = ownership.take_local();
+                        let took_local = !revoked.is_empty();
+                        for addr in revoked {
                             log::info!("Glide: physical input takes local ownership from {addr}");
                             self.emulation_proxy.remove(addr);
                             self.event_tx.send(EmulationEvent::Disconnected { addr }).expect("channel closed");
                             self.listener.reply(addr, ProtoEvent::Leave(0)).await;
+                        }
+                        if took_local {
+                            self.event_tx.send(EmulationEvent::LocalOwnershipTaken).expect("channel closed");
                         }
                     },
                     EmulationRequest::ChangePort(port) => {

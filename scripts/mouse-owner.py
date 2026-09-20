@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Observe physical input activity without grabbing devices or storing key data.
 
-The daemon decides whether it is currently receiving input. The observer never
-reclaims while this machine's mouse is being used to drive a remote screen.
+Physical input returns an incoming or outgoing handoff to this machine. The
+daemon acknowledges an actual return before we center the local pointer.
 """
+import json
 import os
 from pathlib import Path
 import selectors
 import socket
+import subprocess
 import time
 import evdev
 from evdev import ecodes as ec
@@ -48,19 +50,57 @@ def pointer_activity(event):
     return event.type == ec.EV_KEY and event.code in (ec.BTN_LEFT, ec.BTN_RIGHT, ec.BTN_MIDDLE, ec.BTN_TOUCH) and event.value == 1
 
 
+def monitor_center(monitors):
+    active = [m for m in monitors if not m.get('disabled') and m.get('dpmsStatus', True)]
+    if not active:
+        raise ValueError('No active display to center on')
+    monitor = next((m for m in active if m.get('focused')), active[0])
+    width, height = monitor['width'], monitor['height']
+    if monitor.get('transform', 0) % 2:
+        width, height = height, width
+    scale = monitor.get('scale', 1)
+    if scale <= 0:
+        raise ValueError('Invalid monitor scale')
+    return (round(monitor['x'] + width / scale / 2),
+            round(monitor['y'] + height / scale / 2))
+
+
+def center_pointer():
+    try:
+        response = subprocess.run(['hyprctl', '-i', '0', '-j', 'monitors'],
+                                  check=True, capture_output=True, text=True, timeout=1)
+        x, y = monitor_center(json.loads(response.stdout))
+        subprocess.run(['hyprctl', '-i', '0', 'dispatch', 'movecursor', str(x), str(y)],
+                       check=True, capture_output=True, text=True, timeout=1)
+        print(f'Local control restored; pointer centered at {x},{y}', flush=True)
+    except (OSError, ValueError, KeyError, subprocess.SubprocessError) as exc:
+        print(f'Local control restored; pointer centering failed: {exc}', flush=True)
+
+
+def ownership_acknowledged(data):
+    try:
+        return json.loads(data) == 'LocalOwnershipTaken'
+    except (ValueError, UnicodeDecodeError):
+        return False
+
+
 def main():
     selector = selectors.DefaultSelector()
     devices = {}
     ipc = None
+    ipc_buffer = b''
+    center_at = None
     last_scan = last_connect = last_claim = 0.0
     endpoint = str(Path(os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}')) / 'lan-mouse-socket.sock')
 
     def close_ipc():
-        nonlocal ipc
+        nonlocal ipc, ipc_buffer, center_at
         if ipc is not None:
             selector.unregister(ipc)
             ipc.close()
             ipc = None
+        ipc_buffer = b''
+        center_at = None
 
     while True:
         now = time.monotonic()
@@ -95,11 +135,25 @@ def main():
             except OSError:
                 candidate.close()
         activity = False
-        for key, _ in selector.select(timeout=0.25):
+        wait = 0.25 if center_at is None else max(0, min(0.25, center_at - time.monotonic()))
+        for key, _ in selector.select(timeout=wait):
             if key.data == 'ipc':
                 try:
-                    if not ipc.recv(65536):
+                    data = ipc.recv(65536)
+                    if not data:
                         close_ipc()
+                    else:
+                        ipc_buffer += data
+                        while b'\n' in ipc_buffer:
+                            line, ipc_buffer = ipc_buffer.split(b'\n', 1)
+                            if ownership_acknowledged(line):
+                                # Allow the compositor to process the engine's
+                                # already-flushed unlock before warping locally.
+                                center_at = time.monotonic() + 0.02
+                        if len(ipc_buffer) > 262144:
+                            close_ipc()
+                except BlockingIOError:
+                    pass
                 except OSError:
                     close_ipc()
                 continue
@@ -119,6 +173,9 @@ def main():
                 last_claim = time.monotonic()
             except OSError:
                 close_ipc()
+        if center_at is not None and time.monotonic() >= center_at:
+            center_at = None
+            center_pointer()
 
 
 if __name__ == '__main__':

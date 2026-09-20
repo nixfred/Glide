@@ -24,6 +24,8 @@ pub(crate) struct Capture {
 }
 
 pub(crate) enum ICaptureEvent {
+    /// A physical input request released an outgoing handoff.
+    LocalOwnershipTaken,
     /// a client was entered
     CaptureBegin(CaptureHandle),
     /// capture disabled
@@ -51,6 +53,7 @@ pub(crate) enum CaptureType {
 
 #[derive(Clone, Debug)]
 enum CaptureRequest {
+    TakeLocalOwnership,
     /// capture must release the mouse
     Release,
     /// add a capture client
@@ -127,6 +130,12 @@ impl Capture {
     pub(crate) fn release(&self) {
         self.request_tx
             .send(CaptureRequest::Release)
+            .expect("channel closed");
+    }
+
+    pub(crate) fn take_local_ownership(&self) {
+        self.request_tx
+            .send(CaptureRequest::TakeLocalOwnership)
             .expect("channel closed");
     }
 
@@ -210,7 +219,7 @@ impl CaptureTask {
                         CaptureRequest::Reenable => break,
                         CaptureRequest::Create(h, p, t) => self.add_capture(h, p, t),
                         CaptureRequest::Destroy(h) => self.remove_capture(h),
-                        CaptureRequest::Release => { /* nothing to do */ }
+                        CaptureRequest::Release | CaptureRequest::TakeLocalOwnership => { /* nothing to do */ }
                         CaptureRequest::SetReleaseBind(bind) => {
                             self.release_bind.borrow_mut().clone_from(&bind);
                         }
@@ -294,6 +303,7 @@ impl CaptureTask {
                 e = self.request_rx.recv() => match e.expect("channel closed") {
                     CaptureRequest::Reenable => { /* already active */ },
                     CaptureRequest::Release => self.release_capture(capture).await?,
+                    CaptureRequest::TakeLocalOwnership => self.take_local_ownership(capture).await?,
                     CaptureRequest::Create(h, p, t) => {
                         self.add_capture(h, p, t);
                         capture.create(h, p).await?;
@@ -415,6 +425,22 @@ impl CaptureTask {
             }
         }
         capture.release().await
+    }
+
+    async fn take_local_ownership(
+        &mut self,
+        capture: &mut InputCapture,
+    ) -> Result<(), CaptureError> {
+        // Local motion now explicitly returns this host even when it is the
+        // sender. Idle local activity must not keep warping the pointer.
+        if self.active_client.is_some() {
+            self.release_capture(capture).await?;
+            log::info!("Glide: physical input returns outgoing control to this host");
+            self.event_tx
+                .send(ICaptureEvent::LocalOwnershipTaken)
+                .expect("channel closed");
+        }
+        Ok(())
     }
 }
 

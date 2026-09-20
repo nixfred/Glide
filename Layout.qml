@@ -213,7 +213,7 @@ Panel {
           Action { text: root.state.running ? "Pause" : "Resume"; enabled: !root.busy; onClicked: root.act("toggle") }
         }
       }
-      Label { Layout.fillWidth: true; text: "Drag machines to match your desk. Cross an edge to share your keyboard and mouse; use another machine’s own mouse or keyboard to take control there." }
+      Label { Layout.fillWidth: true; text: "Drag machines to match your desk. Cross an edge to share your keyboard and mouse; move the sending machine’s own mouse or press its keyboard to return home." }
       Item {
         id: board
         Layout.fillWidth: true
@@ -334,7 +334,7 @@ Panel {
         Action { text: "↓"; enabled: root.selectedInLayout && !root.busy; onClicked: root.nudge(0,1) }
         Action { text: "→"; enabled: root.selectedInLayout && !root.busy; onClicked: root.nudge(1,0) }
         Item { Layout.fillWidth: true }
-        Action { text: "Authorize SSH"; enabled: !!root.selectedMachine && root.selected!==root.inventory.self.id && !root.busy; onClicked: root.authorize() }
+        Action { text: "Install & authorize"; enabled: !!root.selectedMachine && root.selected!==root.inventory.self.id && !root.busy; onClicked: root.authorize() }
         Action { text: "Remove"; enabled: root.selectedInLayout && root.selected!==root.inventory.self.id && !root.busy; onClicked: root.removeSelected() }
       }
       RowLayout {
@@ -361,7 +361,7 @@ Panel {
       }
       RowLayout {
         Layout.fillWidth: true
-        Label { Layout.fillWidth: true; text: "Pairing uses your SSH login. Discovery alone never grants control.\nEmergency return: left Ctrl + left Shift + Esc. Clipboard stays local."; color: Qt.alpha(Color.foreground,0.7); font.pixelSize: Style.font.caption }
+        Label { Layout.fillWidth: true; text: "Pairing uses your SSH login and installs Glide on the remote Omarchy desktop.\nPhysical input returns home and centers the pointer. Emergency return: left Ctrl + left Shift + Esc."; color: Qt.alpha(Color.foreground,0.7); font.pixelSize: Style.font.caption }
         Action { text: "Add selected"; enabled: !!root.selectedMachine && !root.selectedInLayout && root.draft.length<9 && !root.busy; onClicked: root.addSelected() }
       }
       Label {

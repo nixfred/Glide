@@ -2,7 +2,7 @@
   <img src="assets/glide-hero.png" alt="Glide — One desk. Every machine. An electric lime pointer flows across three dark displays." width="100%">
 </p>
 
-<p align="center"><strong>Mouse and keyboard sharing for Omarchy.</strong><br>Move to the edge. Keep working.</p>
+<p align="center"><strong>Mouse and keyboard sharing for OMARCHY.</strong><br>Move to the edge. Keep working.</p>
 
 <p align="center">
   <img alt="Version" src="https://img.shields.io/badge/version-0.2.1-c5ff36?style=flat-square&labelColor=111111">
@@ -10,9 +10,7 @@
   <img alt="Network" src="https://img.shields.io/badge/network-LAN%20only-c5ff36?style=flat-square&labelColor=111111">
 </p>
 
-Glide lets your pointer cross from one computer to the next, with your keyboard following along. Arrange your machines in the Omarchy panel, pair them, and work across your desk with one set of controls.
-
-**Early development:** the first supported environment is Omarchy on Hyprland, using the bundled Linux engine. Physical handoff testing is still in progress. Clipboard contents stay local; this is input sharing, not screen streaming or file transfer.
+Glide is an Omarchy plugin. It lets your pointer cross from one Omarchy computer to the next, with your keyboard following along. Arrange your machines in the Omarchy panel, pair them, and work across your desk with one set of controls. Clipboard contents stay local; this is input sharing, not screen streaming or file transfer.
 
 ## Your whole desk, connected
 
@@ -23,16 +21,16 @@ Glide lets your pointer cross from one computer to the next, with your keyboard 
 | **Discover nearby sessions** | Find active Glide desktops on your physical private LAN. Discovery never grants permission to control a machine. |
 | **Pair through SSH** | Verify each device's identity through your SSH login before applying a layout. |
 | **Apply one layout** | Distribute the arrangement to participating machines, with rollback attempted if deployment fails. |
-| **Physical input takes priority** | Move a receiving machine's own mouse or press its physical keyboard to reclaim local control. Continued input on the sending machine keeps driving the remote desktop. |
+| **Physical input takes priority** | Move the sending machine's own mouse or press its physical keyboard to immediately return control to that machine. Glide releases the remote handoff and centers the local pointer. |
 | **Pause from the bar** | Check live status and pause or resume sharing. Right-click the bar icon for a quick toggle. |
 | **Encrypted connections** | The bundled engine uses DTLS with paired certificate fingerprints in both directions. |
 | **Emergency return** | Press **Left Ctrl + Left Shift + Esc** on the sending keyboard to release capture. |
 
 <p align="center"><img src="assets/glide-icon.png" alt="Glide's black metal G and lime cursor emblem" width="180"></p>
 
-## Install on each computer
+## Install Glide once
 
-Use an unlocked Omarchy desktop connected to the same physical private IPv4 LAN. Each computer needs SSH access for pairing and layout updates. Glide uses Avahi for discovery and UDP port 4242 for input sharing.
+Install Glide on the Omarchy desktop you are using now. After SSH verifies another unlocked Omarchy desktop, Glide transfers its built bundle and installs the plugin and services there automatically. Glide uses Avahi for discovery and UDP port 4242 for input sharing.
 
 ```bash
 git clone https://github.com/nixfred/Glide.git
@@ -48,8 +46,8 @@ An unrelated existing Lan Mouse configuration is not overwritten. Back it up and
 
 ## Set up your desk
 
-1. Open the mouse icon in the Omarchy bar on one machine.
-2. Select a nearby machine and choose **Authorize SSH**. Verify its SSH host identity before accepting it.
+1. Open the mouse icon in the Omarchy bar.
+2. Select a nearby Omarchy machine and choose **Install & authorize**. Verify its SSH host identity before accepting it; Glide installs itself there over that authenticated SSH connection.
 3. Choose **Add selected**, then drag the machine to match its physical position.
 4. Choose **Apply layout**. Repeat for any additional computers.
 5. Cross the corresponding screen edge to start sharing.
@@ -60,7 +58,7 @@ If you release control while resting on a screen edge, move inward before crossi
 
 ## Troubleshooting
 
-**Release a trapped pointer:** use Left Ctrl + Left Shift + Esc on the sending keyboard. To pause sharing from a terminal on either computer:
+**Release a trapped pointer:** move the sending machine's physical mouse or press its physical keyboard. Glide ends the remote handoff and centers the pointer on the local Omarchy display. The emergency bind is Left Ctrl + Left Shift + Esc on the sending keyboard. To pause sharing from a terminal on either computer:
 
 ```bash
 systemctl --user stop omarchy-glide.service
@@ -76,7 +74,7 @@ journalctl --user -u omarchy-glide -u omarchy-glide-owner -n 80
 python3 scripts/glide-control.py status
 ```
 
-**No nearby machines:** install Glide and log into an unlocked desktop on each computer. Check Avahi and allow LAN mDNS (UDP 5353). VPN, container, loopback, public-IP, and IPv6-only networks are not discovered.
+**No nearby machines:** log into an unlocked Omarchy desktop and check Avahi plus LAN mDNS (UDP 5353). VPN, container, loopback, public-IP, and IPv6-only networks are not discovered.
 
 **Local takeover does not work:** check the ownership-service log for the physical mouse and keyboard names. Device permissions may need a logout/login or device reconnect after installation.
 
@@ -87,20 +85,6 @@ python3 scripts/glide-control.py status
 ```
 
 Uninstall disables the plugin and services and removes recorded Glide firewall rules. It retains pairing identities, source, device-access rules, and recovery files.
-
-## Development
-
-The Python helpers manage discovery, pairing, layout deployment, status, and physical input observation. `Layout.qml` is the bar panel. `engine/` vendors Lan Mouse source, including Glide's ownership and pairing changes; it is not a submodule.
-
-```bash
-python3 -m unittest discover -s tests -v
-cargo test --manifest-path engine/Cargo.toml --locked \
-  --no-default-features --features layer_shell_capture,wlroots_emulation \
-  -p lan-mouse -p input-capture -p lan-mouse-ipc
-./build-engine.sh
-```
-
-See [CHANGELOG.md](CHANGELOG.md) for handoff fixes and [assets/README.md](assets/README.md) for the artwork.
 
 ## Credits and licensing
 

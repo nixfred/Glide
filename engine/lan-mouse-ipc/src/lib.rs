@@ -180,6 +180,8 @@ pub struct ClientState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FrontendEvent {
+    /// Glide has returned an active incoming or outgoing handoff to this host.
+    LocalOwnershipTaken,
     /// a client was created
     Created(ClientHandle, ClientConfig, ClientState),
     /// no such client
@@ -245,7 +247,7 @@ pub enum FrontendRequest {
     EnableCapture,
     /// request reenabling input emulation
     EnableEmulation,
-    /// Glide extension: a physical pointer on this host requests local ownership.
+    /// Glide extension: physical input releases incoming and outgoing handoffs.
     TakeLocalOwnership,
     /// synchronize all state
     Sync,

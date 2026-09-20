@@ -10,6 +10,29 @@ spec.loader.exec_module(owner)
 e = owner.ec
 
 class OwnershipTests(unittest.TestCase):
+    def test_center_uses_focused_display_and_scaled_global_coordinates(self):
+        monitors = [dict(width=1920, height=1080, x=0, y=0),
+                    dict(width=3840, height=2160, x=1920, y=-200, scale=2, focused=True)]
+        self.assertEqual(owner.monitor_center(monitors), (2880, 340))
+        monitors[1]['transform'] = 1
+        self.assertEqual(owner.monitor_center(monitors), (2460, 760))
+        monitors[1]['dpmsStatus'] = False
+        self.assertEqual(owner.monitor_center(monitors), (960, 540))
+
+    def test_no_center_target_when_displays_are_off(self):
+        with self.assertRaises(ValueError):
+            owner.monitor_center([dict(dpmsStatus=False)])
+
+    def test_only_confirmed_takeover_requests_centering(self):
+        self.assertTrue(owner.ownership_acknowledged(b'"LocalOwnershipTaken"'))
+        for line in [b'{"CaptureStatus":"Enabled"}', b'{"DeviceEntered":{}}', b'null', b'invalid']:
+            self.assertFalse(owner.ownership_acknowledged(line))
+
+    def test_center_dispatch_uses_monitor_coordinates(self):
+        with patch.object(owner.subprocess, 'run', side_effect=[SimpleNamespace(stdout='[{"width":3840,"height":2160,"x":0,"y":0}]'), SimpleNamespace()]) as run:
+            owner.center_pointer()
+        self.assertEqual(run.call_args_list[1].args[0], ['hyprctl','-i','0','dispatch','movecursor','1920','1080'])
+
     def test_keyboard_does_not_claim_pointer(self):
         for code in [e.KEY_A, e.KEY_LEFTSHIFT, e.KEY_ESC]:
             self.assertFalse(owner.pointer_activity(SimpleNamespace(type=e.EV_KEY, code=code, value=1)))

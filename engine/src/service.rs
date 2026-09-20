@@ -202,7 +202,10 @@ impl Service {
             }
             FrontendRequest::EnableCapture => self.capture.reenable(),
             FrontendRequest::EnableEmulation => self.emulation.reenable(),
-            FrontendRequest::TakeLocalOwnership => self.emulation.take_local_ownership(),
+            FrontendRequest::TakeLocalOwnership => {
+                self.capture.take_local_ownership();
+                self.emulation.take_local_ownership();
+            }
             FrontendRequest::Enumerate() => self.enumerate(),
             FrontendRequest::UpdateFixIps(handle, fix_ips) => {
                 self.update_fix_ips(handle, fix_ips);
@@ -286,6 +289,9 @@ impl Service {
 
     fn handle_emulation_event(&mut self, event: EmulationEvent) {
         match event {
+            EmulationEvent::LocalOwnershipTaken => {
+                self.notify_frontend(FrontendEvent::LocalOwnershipTaken)
+            }
             EmulationEvent::ConnectionAttempt { fingerprint } => {
                 self.notify_frontend(FrontendEvent::ConnectionAttempt { fingerprint });
             }
@@ -336,6 +342,9 @@ impl Service {
 
     fn handle_capture_event(&mut self, event: ICaptureEvent) {
         match event {
+            ICaptureEvent::LocalOwnershipTaken => {
+                self.notify_frontend(FrontendEvent::LocalOwnershipTaken)
+            }
             ICaptureEvent::CaptureBegin(handle) => {
                 // we entered the capture zone for an incoming connection
                 // => notify it that its capture should be released

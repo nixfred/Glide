@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import socket
 import subprocess
+import tarfile
 import tempfile
 import time
 import tomllib
@@ -19,6 +20,7 @@ STATE = Path.home() / '.local/state/omarchy/glide'
 SERVICE = 'omarchy-glide.service'
 PRIVATE = [ipaddress.ip_network(n) for n in ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16')]
 REMOTE = 'python3 .config/omarchy/plugins/nixfred.glide/scripts/network.py'
+PLUGIN = Path.home() / '.config/omarchy/plugins/nixfred.glide'
 
 
 def run(argv, **kw):
@@ -216,6 +218,46 @@ def remote(peer, action, payload=None):
     except ValueError: raise ValueError(f"{peer['name']}: install Glide on the remote machine first")
     if not data.get('ok'): raise ValueError(f"{peer['name']}: "+data.get('error','request failed'))
     return data['result']
+
+
+def install_remote(peer):
+    """Install the already-built Omarchy bundle after SSH host verification."""
+    staging = '.local/share/omarchy-glide-install'
+    made = run(ssh_args(peer) + ['mkdir', '-p', staging], timeout=20)
+    if made.returncode:
+        raise ValueError(f"{peer['name']}: could not create the remote Glide staging directory")
+    command = ssh_args(peer) + ['tar', '-xzf', '-', '-C', staging]
+    pipe = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE)
+    try:
+        with tarfile.open(fileobj=pipe.stdin, mode='w:gz') as archive:
+            files = [
+                (Path.home()/'.local/bin/omarchy-glide-engine', 'omarchy-glide-engine'),
+                (PLUGIN/'Layout.qml', 'Layout.qml'),
+                (PLUGIN/'manifest.json', 'manifest.json'),
+                (PLUGIN/'scripts', 'scripts'),
+                (PLUGIN/'omarchy-glide.service', 'omarchy-glide.service'),
+                (PLUGIN/'omarchy-glide-owner.service', 'omarchy-glide-owner.service'),
+                (PLUGIN/'omarchy-glide-discovery.service', 'omarchy-glide-discovery.service'),
+                (PLUGIN/'remote-install.sh', 'remote-install.sh'),
+            ]
+            for source, name in files:
+                if not source.exists():
+                    # Installed plugin files live beside the helper; units are
+                    # copied there by install-plugin.sh for remote packaging.
+                    source = Path.home()/'.config/systemd/user'/name
+                if not source.exists(): raise ValueError(f'Local Glide file is missing: {source}')
+                archive.add(source, arcname=name)
+        pipe.stdin.close()
+        if pipe.wait(timeout=40):
+            error = pipe.stderr.read().decode(errors='replace')[-300:]
+            raise ValueError(f"{peer['name']}: bundle transfer failed: {error}")
+    finally:
+        if pipe.stdin and not pipe.stdin.closed: pipe.stdin.close()
+    installed = run(ssh_args(peer) + ['bash', staging+'/remote-install.sh'], timeout=90)
+    if installed.returncode:
+        raise ValueError(f"{peer['name']}: remote Glide installation failed: {installed.stderr.strip()[-350:]}")
+    return installed.stdout.strip()
 
 
 def deploy(layout):
