@@ -6,9 +6,51 @@ import os
 from pathlib import Path
 import socket
 import subprocess
+import shlex
 import tomllib
 
 UNIT = 'omarchy-glide.service'
+PLUGIN_SCRIPT = '.config/omarchy/plugins/nixfred.glide/scripts/glide-control.py'
+
+def peer_target():
+    """Return the paired SSH target from Glide's verified layout."""
+    layout = Path.home() / '.config/omarchy-glide/layout.json'
+    try:
+        data = json.loads(layout.read_text())
+        machines = data.get('machines', [])
+        me = socket.gethostname()
+        peer = next((m for m in machines if m.get('name') != me), None)
+        if not peer:
+            return None
+        user = peer.get('user', '')
+        ip = peer.get('ip', '')
+        if not user or not ip:
+            return None
+        return user, ip
+    except (OSError, ValueError, TypeError):
+        return None
+
+def remote_action(action):
+    target = peer_target()
+    if not target:
+        return False, 'No paired SSH target is available'
+    user, ip = target
+    command = (
+        "uid=$(id -u); "
+        "export XDG_RUNTIME_DIR=/run/user/$uid; "
+        "export DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus; "
+        f"python3 {shlex.quote(PLUGIN_SCRIPT)} --local-only {shlex.quote(action)}"
+    )
+    args = [
+        'ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5',
+        '-o', 'ConnectionAttempts=1', '-o', 'ClearAllForwardings=yes',
+        f'{user}@{ip}', command,
+    ]
+    result = subprocess.run(args, capture_output=True, text=True, timeout=12)
+    if result.returncode:
+        detail = (result.stderr or result.stdout).strip().splitlines()
+        return False, detail[-1] if detail else f'SSH exited {result.returncode}'
+    return True, ''
 
 def status():
     result = {'running': False, 'ready': False, 'host': socket.gethostname(),
@@ -53,6 +95,7 @@ def status():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['status', 'pause', 'resume', 'toggle', 'settings'], default='status', nargs='?')
+    parser.add_argument('--local-only', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.action == 'status':
         print(json.dumps(status()))
@@ -68,6 +111,10 @@ def main():
         action = 'pause' if active else 'resume'
     # Stopping releases captured input and pauses both sending and receiving.
     subprocess.run(['systemctl', '--user', 'stop' if action == 'pause' else 'start', UNIT], check=True, timeout=10)
+    if not args.local_only:
+        ok, error = remote_action(action)
+        if not ok:
+            raise SystemExit(f'Local sharing changed, but paired machine could not be updated: {error}')
 
 if __name__ == '__main__':
     main()

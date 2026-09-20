@@ -22,7 +22,7 @@ Glide is an Omarchy plugin. It lets your pointer cross from one Omarchy computer
 | **Pair through SSH** | Verify each device's identity through your SSH login before applying a layout. |
 | **Apply one layout** | Distribute the arrangement to participating machines, with rollback attempted if deployment fails. |
 | **Emergency return** | Press **Left Ctrl + Left Shift + Esc** on the sending keyboard to release capture. |
-| **Pause from the bar** | Check live status and pause or resume sharing. Right-click the bar icon for a quick toggle. |
+| **Pause from the bar** | Check live status and pause or resume sharing. Right-click the bar icon for a quick toggle; the action is synchronized to the paired machine over the verified SSH link. |
 | **Encrypted connections** | The bundled engine uses DTLS with paired certificate fingerprints in both directions. |
 | **Emergency return** | Press **Left Ctrl + Left Shift + Esc** on the sending keyboard to release capture. |
 
@@ -75,7 +75,7 @@ If you release control while resting on a screen edge, move inward before crossi
 systemctl --user stop omarchy-glide.service
 ```
 
-Resume with `systemctl --user start omarchy-glide.service`.
+Resume with `systemctl --user start omarchy-glide.service`. The bar action is the convenient synchronized control: pause on either paired machine and resume on either one.
 
 **Inspect the services:**
 
