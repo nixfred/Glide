@@ -236,6 +236,7 @@ fn build_ui(app: &Application) {
                 match notify {
                     FrontendEvent::RemoteControlActive => {}
                     FrontendEvent::RemoteControlInactive => {}
+                    FrontendEvent::IncomingControlInactive => {}
                     FrontendEvent::LocalOwnershipTaken => {}
                     FrontendEvent::Created(handle, client, state) => {
                         window.new_client(handle, client, state)

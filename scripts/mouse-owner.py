@@ -97,12 +97,30 @@ def center_pointer():
         print(f'Local control restored; pointer centering failed: {exc}', flush=True)
 
 
+def edge_pointer(edge):
+    try:
+        response = subprocess.run(['hyprctl', '-i', '0', '-j', 'monitors'], check=True,
+                                  capture_output=True, text=True, timeout=1)
+        monitors = json.loads(response.stdout)
+        active = [m for m in monitors if not m.get('disabled') and m.get('dpmsStatus', True)]
+        monitor = next((m for m in active if m.get('focused')), active[0])
+        scale = monitor.get('scale', 1)
+        width = monitor['width'] / scale
+        x = monitor['x'] + (4 if edge == 'left' else width - 4)
+        y = monitor['y'] + monitor['height'] / scale / 2
+        subprocess.run(['hyprctl', '-i', '0', 'dispatch', 'movecursor', str(round(x)), str(round(y))],
+                       check=True, capture_output=True, text=True, timeout=1)
+        print(f'Incoming control ended; pointer placed at {edge} edge', flush=True)
+    except (OSError, ValueError, KeyError, IndexError, subprocess.SubprocessError) as exc:
+        print(f'Incoming control edge placement failed: {exc}', flush=True)
+
+
 def remote_control_state(data):
     try:
         event = json.loads(data)
         if event == 'RemoteControlActive':
             return True
-        if event in ('RemoteControlInactive', 'LocalOwnershipTaken', 'LocalOwnershipActive'):
+        if event in ('RemoteControlInactive', 'IncomingControlInactive', 'LocalOwnershipTaken', 'LocalOwnershipActive'):
             return False
         return None
     except (ValueError, UnicodeDecodeError):
@@ -121,6 +139,7 @@ def main():
     ipc = None
     ipc_buffer = b''
     center_at = None
+    edge_at = None
     remote_active = False
     remote_active_since = None
     edge = capture_edge()
@@ -128,13 +147,14 @@ def main():
     endpoint = str(Path(os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}')) / 'lan-mouse-socket.sock')
 
     def close_ipc():
-        nonlocal ipc, ipc_buffer, center_at, remote_active, remote_active_since
+        nonlocal ipc, ipc_buffer, center_at, edge_at, remote_active, remote_active_since
         if ipc is not None:
             selector.unregister(ipc)
             ipc.close()
             ipc = None
         ipc_buffer = b''
         center_at = None
+        edge_at = None
         remote_active = False
         remote_active_since = None
 
@@ -186,6 +206,8 @@ def main():
                             if state is not None:
                                 remote_active = state
                                 remote_active_since = time.monotonic() if state else None
+                            if line == b'"IncomingControlInactive"':
+                                edge_at = time.monotonic() + 0.02
                             if state is False and line == b'"LocalOwnershipTaken"':
                                 # Allow the compositor to process the engine's
                                 # already-flushed unlock before warping locally.
@@ -218,6 +240,9 @@ def main():
         if center_at is not None and time.monotonic() >= center_at:
             center_at = None
             center_pointer()
+        if edge_at is not None and time.monotonic() >= edge_at:
+            edge_at = None
+            edge_pointer(edge)
 
 
 if __name__ == '__main__':

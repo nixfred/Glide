@@ -184,6 +184,8 @@ pub enum FrontendEvent {
     RemoteControlActive,
     /// No remote handoff is active on this host.
     RemoteControlInactive,
+    /// An incoming remote handoff ended; place the local pointer at its edge.
+    IncomingControlInactive,
     /// Glide has returned an active incoming or outgoing handoff to this host.
     LocalOwnershipTaken,
     /// a client was created

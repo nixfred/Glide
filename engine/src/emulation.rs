@@ -25,7 +25,7 @@ pub(crate) struct Emulation {
 
 pub(crate) enum EmulationEvent {
     RemoteControlActive,
-    RemoteControlInactive,
+    IncomingControlInactive,
     LocalOwnershipTaken,
     Connected {
         addr: SocketAddr,
@@ -165,7 +165,7 @@ impl ListenTask {
                             ProtoEvent::Leave(_) => {
                                 ownership.leave(addr);
                                 self.emulation_proxy.remove(addr);
-                                self.event_tx.send(EmulationEvent::RemoteControlInactive).expect("channel closed");
+                                self.event_tx.send(EmulationEvent::IncomingControlInactive).expect("channel closed");
                                 self.event_tx.send(EmulationEvent::Disconnected { addr }).expect("channel closed");
                                 self.listener.reply(addr, ProtoEvent::Ack(0)).await;
                             }
@@ -202,7 +202,7 @@ impl ListenTask {
                     EmulationRequest::Release(addr) => {
                         ownership.leave(addr);
                         self.emulation_proxy.remove(addr);
-                        self.event_tx.send(EmulationEvent::RemoteControlInactive).expect("channel closed");
+                        self.event_tx.send(EmulationEvent::IncomingControlInactive).expect("channel closed");
                         self.event_tx.send(EmulationEvent::Disconnected { addr }).expect("channel closed");
                         self.listener.reply(addr, ProtoEvent::Leave(0)).await;
                     },
@@ -212,7 +212,7 @@ impl ListenTask {
                         for addr in revoked {
                             log::info!("Glide: physical input takes local ownership from {addr}");
                             self.emulation_proxy.remove(addr);
-                            self.event_tx.send(EmulationEvent::RemoteControlInactive).expect("channel closed");
+                            self.event_tx.send(EmulationEvent::IncomingControlInactive).expect("channel closed");
                             self.event_tx.send(EmulationEvent::Disconnected { addr }).expect("channel closed");
                             self.listener.reply(addr, ProtoEvent::Leave(0)).await;
                         }

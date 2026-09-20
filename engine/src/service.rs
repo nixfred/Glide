@@ -292,8 +292,8 @@ impl Service {
             EmulationEvent::RemoteControlActive => {
                 self.notify_frontend(FrontendEvent::RemoteControlActive)
             }
-            EmulationEvent::RemoteControlInactive => {
-                self.notify_frontend(FrontendEvent::RemoteControlInactive)
+            EmulationEvent::IncomingControlInactive => {
+                self.notify_frontend(FrontendEvent::IncomingControlInactive)
             }
             EmulationEvent::LocalOwnershipTaken => {
                 self.notify_frontend(FrontendEvent::LocalOwnershipTaken)
