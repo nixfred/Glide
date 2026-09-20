@@ -21,7 +21,7 @@ Glide is an Omarchy plugin. It lets your pointer cross from one Omarchy computer
 | **Discover nearby sessions** | Find active Glide desktops on your physical private LAN. Discovery never grants permission to control a machine. |
 | **Pair through SSH** | Verify each device's identity through your SSH login before applying a layout. |
 | **Apply one layout** | Distribute the arrangement to participating machines, with rollback attempted if deployment fails. |
-| **Physical input takes priority** | Move the sending machine's own mouse or press its physical keyboard to immediately return control to that machine. Glide releases the remote handoff and centers the local pointer. |
+| **Emergency return** | Press **Left Ctrl + Left Shift + Esc** on the sending keyboard to release capture. |
 | **Pause from the bar** | Check live status and pause or resume sharing. Right-click the bar icon for a quick toggle. |
 | **Encrypted connections** | The bundled engine uses DTLS with paired certificate fingerprints in both directions. |
 | **Emergency return** | Press **Left Ctrl + Left Shift + Esc** on the sending keyboard to release capture. |
@@ -40,7 +40,7 @@ cd Glide
 
 The installer builds the bundled engine, installs the bar plugin and user services, starts Avahi, and configures LAN-scoped UFW rules. It may ask for `sudo` for packages, device access, Avahi, and firewall setup. With another firewall, configure the LAN rules yourself; the installer currently expects UFW.
 
-Physical takeover needs read access to local input devices. The installer adds session-scoped `uaccess` rules for mice, touchpads, and keyboards when necessary; it does not add your account to the `input` group. The observer uses key-down activity only, without decoding or storing typed text. Synthetic uinput devices are excluded.
+Glide uses Lan Mouse's single capture/emulation ownership state machine. It does not run a second evdev ownership watcher, avoiding feedback from injected remote pointer events.
 
 An unrelated existing Lan Mouse configuration is not overwritten. Back it up and move it before installing. Do not run another Lan Mouse daemon alongside Glide: both use the same IPC socket and configuration directory.
 
@@ -58,7 +58,7 @@ If you release control while resting on a screen edge, move inward before crossi
 
 ## Troubleshooting
 
-**Release a trapped pointer:** move the sending machine's physical mouse or press its physical keyboard. Glide ends the remote handoff and centers the pointer on the local Omarchy display. The emergency bind is Left Ctrl + Left Shift + Esc on the sending keyboard. To pause sharing from a terminal on either computer:
+**Release a trapped pointer:** press Left Ctrl + Left Shift + Esc on the sending keyboard. To pause sharing from a terminal on either computer:
 
 ```bash
 systemctl --user stop omarchy-glide.service
@@ -69,14 +69,14 @@ Resume with `systemctl --user start omarchy-glide.service`.
 **Inspect the services:**
 
 ```bash
-systemctl --user status omarchy-glide omarchy-glide-owner omarchy-glide-discovery
-journalctl --user -u omarchy-glide -u omarchy-glide-owner -n 80
+systemctl --user status omarchy-glide omarchy-glide-discovery
+journalctl --user -u omarchy-glide -n 80
 python3 scripts/glide-control.py status
 ```
 
 **No nearby machines:** log into an unlocked Omarchy desktop and check Avahi plus LAN mDNS (UDP 5353). VPN, container, loopback, public-IP, and IPv6-only networks are not discovered.
 
-**Local takeover does not work:** check the ownership-service log for the physical mouse and keyboard names. Device permissions may need a logout/login or device reconnect after installation.
+**A pointer is trapped:** press Left Ctrl + Left Shift + Esc to release capture, then move inward before crossing again.
 
 **Network address changed:** rescan and reapply the layout. Saved peer addresses and firewall rules are not a general roaming-network manager.
 
