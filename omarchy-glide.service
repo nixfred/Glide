@@ -10,6 +10,10 @@ Type=simple
 ExecStart=/usr/bin/systemd-inhibit --what=idle:sleep --mode=block --who=Glide '--why=Remote mouse control' %h/.local/bin/omarchy-glide-engine daemon
 Restart=on-failure
 RestartSec=3
+# Off the home LAN the bind address is missing and the engine exits at once
+# (EADDRNOTAVAIL). Back off to one attempt a minute instead of looping every 3s.
+RestartSteps=6
+RestartMaxDelaySec=60
 UMask=0077
 
 [Install]
