@@ -9,8 +9,9 @@ from glide_network import *
 
 def main():
     parser = argparse.ArgumentParser(description='Glide LAN discovery and authenticated machine layout')
-    parser.add_argument('action', choices=['inventory','identity','snapshot','validate','apply','restore','deploy','authorize'])
+    parser.add_argument('action', choices=['inventory','identity','snapshot','validate','apply','restore','deploy','authorize','add-peer','remove-peer'])
     parser.add_argument('device', nargs='?')
+    parser.add_argument('user', nargs='?')
     args = parser.parse_args()
     if args.action == 'authorize':
         found = next((d for d in inventory()['devices'] if d['id'] == args.device), None)
@@ -25,6 +26,23 @@ def main():
         if actual['fingerprint'] != found['fingerprint']: raise ValueError('Advertised certificate differs from the authenticated machine')
         print('Authorized. Return to Glide and add this machine.', flush=True)
         input('Press Enter to close. ')
+        return
+    if args.action in ('add-peer', 'remove-peer'):
+        # Interactive, in a terminal: SSH host-key and sudo prompts need one.
+        try:
+            if args.action == 'add-peer':
+                print('Add a Glide machine on a routed private subnet (for example another VLAN).\n', flush=True)
+                ip = args.device or input('Its private IPv4 address: ').strip()
+                user = args.user or input(f'Its SSH account [{getpass.getuser()}]: ').strip() or getpass.getuser()
+                found = add_manual_peer(ip, user)
+                print(f"Added {found['name']}. Return to Glide, select it and choose Add selected.", flush=True)
+            else:
+                gone = forget_manual_peer(args.device or input('Machine to forget (name, address or id): ').strip())
+                print(f"Forgot {gone['name']}.", flush=True)
+        except (ValueError, OSError) as error:
+            print('Not completed: ' + str(error), flush=True)
+        try: input('Press Enter to close. ')
+        except EOFError: pass
         return
     if args.action in ('inventory','identity','snapshot'):
         result = {'inventory':inventory, 'identity':identity, 'snapshot':snapshot}[args.action]()

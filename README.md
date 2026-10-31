@@ -50,7 +50,7 @@ You install Glide once on the Omarchy desktop you are using. For each additional
 - SSH server access on the LAN (`ssh user@machine` must work).
 - The remote host-key prompt accepted once, and a password or SSH key that can log in as that user.
 - An active Omarchy user session; it does not need to be the focused desktop while pairing.
-- Direct private-LAN IPv4 reachability. VPN, public-IP, and IPv6-only paths are not supported.
+- Private-LAN IPv4 reachability: either directly attached, or a routed private subnet (such as another VLAN) added by address (see below). VPN, public-IP, and IPv6-only paths are not supported.
 
 Glide verifies the SSH host identity interactively, transfers the already-built Glide bundle, asks for the remote user’s sudo password in the SSH terminal, installs the remote dependencies and user services, and starts them. If that account cannot use sudo, Glide stops with a clear error and the remote machine must be installed by an Omarchy administrator first. You do not separately install Glide on every machine. SSH access is only used for installation and layout updates; mouse traffic uses the paired DTLS connection on UDP 4242.
 
@@ -65,6 +65,25 @@ Glide verifies the SSH host identity interactively, transfers the already-built 
 Connections follow the nearest machine in the same row or column. Diagonal-only arrangements do not create a connection. On the receiving computer, its own mouse or keyboard reclaims local control.
 
 If you release control while resting on a screen edge, move inward before crossing again. Glide suppresses immediate recapture for 250 ms and rejects entry retries for 500 ms after physical takeover.
+
+## Machines on another VLAN or routed subnet
+
+mDNS discovery does not cross a router, so a machine on a different private subnet never appears under **Nearby Omarchy machines**. Add it by address instead:
+
+1. Choose **Add by address**. A terminal opens and asks for the machine's private IPv4 address and its SSH account.
+2. Verify the SSH host identity when prompted and log in. Glide installs itself there and reads the machine's name and certificate fingerprint over that authenticated SSH connection, not from the network.
+3. Glide adds a UFW rule that allows UDP 4242 from that one address only (it asks for `sudo`), then saves the machine so it appears with the discovered ones. Choose it, then **Add selected** and **Apply layout** as usual.
+
+Choose a saved address and **Forget** (after removing it from the layout and applying) to delete the entry and its firewall rule.
+
+What stays strict:
+
+- Only RFC 1918 addresses (`10/8`, `172.16/12`, `192.168/16`) are accepted. CGNAT (`100.64.0.0/10`, which includes Tailscale), public, loopback, link-local and IPv6 addresses are refused.
+- Glide asks the kernel which interface it would use to reach the address from the one it binds to. The route must leave through that physical network card. A route through a VPN or any other virtual interface is refused, both when you add the machine and every time the layout is applied.
+- Only addresses you added this way may be on a different subnet. Discovery, and machines it finds, stay limited to directly attached networks.
+- Glide still binds to your one physical LAN address, never `0.0.0.0`, and each peer is still pinned to a single IP and its certificate fingerprint.
+
+Your router must allow UDP 4242 and SSH (TCP 22) between the two VLANs. Glide cannot change that.
 
 ## Troubleshooting
 
@@ -87,6 +106,8 @@ python3 scripts/glide-control.py status
 **No nearby machines:** log into an unlocked Omarchy desktop and check Avahi plus LAN mDNS (UDP 5353). VPN, container, loopback, public-IP, and IPv6-only networks are not discovered.
 
 **A pointer is trapped:** press Left Ctrl + Left Shift + Esc to release capture, then move inward before crossing again.
+
+**A routed machine shows "no route":** the address is not currently reached through your physical network card (VPN up, cable unplugged, or the route changed). Fix the route, then scan again.
 
 **Network address changed:** rescan and reapply the layout. Saved peer addresses and firewall rules are not a general roaming-network manager.
 

@@ -21,6 +21,7 @@ SERVICE = 'omarchy-glide.service'
 PRIVATE = [ipaddress.ip_network(n) for n in ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16')]
 REMOTE = 'python3 .config/omarchy/plugins/nixfred.glide/scripts/network.py'
 PLUGIN = Path.home() / '.config/omarchy/plugins/nixfred.glide'
+MAX_MANUAL = 8
 
 
 def run(argv, **kw):
@@ -66,6 +67,54 @@ def on_lan(ip, links=None):
         address = ipaddress.ip_address(ip)
         return any(address in ipaddress.ip_network(i['network']) and str(address) != i['ip'] for i in (links if links is not None else interfaces()))
     except ValueError: return False
+
+
+def parse_private_ip(value, own=()):
+    """Return a private (RFC 1918) IPv4 address, or raise ValueError.
+
+    CGNAT (100.64.0.0/10, where Tailscale lives), loopback, link-local,
+    unspecified, multicast, public and IPv6 addresses are all refused.
+    """
+    try: address = ipaddress.ip_address(str(value).strip())
+    except ValueError: raise ValueError('Enter a valid IPv4 address')
+    if address.version != 4 or not any(address in net for net in PRIVATE):
+        raise ValueError('Only private IPv4 addresses (10/8, 172.16/12, 192.168/16) are supported')
+    if str(address) in own: raise ValueError('That is this machine’s own address')
+    return address
+
+
+def routed_via(ip, source):
+    """Name the interface the kernel sends from `source` to `ip` through, or ''."""
+    try:
+        probe = run(['ip', '-j', '-4', 'route', 'get', str(ip), 'from', str(source)])
+        rows = json.loads(probe.stdout) if probe.returncode == 0 else []
+    except (OSError, ValueError, subprocess.SubprocessError): return ''
+    row = rows[0] if isinstance(rows, list) and rows and isinstance(rows[0], dict) else {}
+    # `local`, `broadcast`, `unreachable` and the like are not a path to a peer.
+    return str(row.get('dev', '')) if row.get('type', 'unicast') == 'unicast' else ''
+
+
+def routed_ok(ip, links=None):
+    """True when a private `ip` is reached over the physical NIC Glide binds to.
+
+    Glide's engine binds to the first link's address, so a routed peer must
+    leave through that same link. A route that exits a VPN or any other
+    virtual interface fails here.
+    """
+    links = links if links is not None else interfaces()
+    if not links: return False
+    try: address = parse_private_ip(ip, own={i['ip'] for i in links})
+    except ValueError: return False
+    primary = links[0]
+    return routed_via(address, primary['ip']) == primary['name']
+
+
+def peer_allowed(peer, links=None):
+    """Directly attached peers always pass; routed ones only if added by address."""
+    links = links if links is not None else interfaces()
+    ip = peer.get('ip', '')
+    if on_lan(ip, links): return True
+    return peer.get('manual') is True and routed_ok(ip, links)
 
 
 def session_active():
@@ -125,19 +174,26 @@ def model():
     return saved
 
 
+def check_node(node):
+    """Reject a machine record whose identity, name, account or address is malformed."""
+    if not re.fullmatch(r'[0-9a-f]{32}', str(node.get('id', ''))): raise ValueError('Invalid device identity')
+    if not re.fullmatch(r'(?:[0-9a-f]{2}:){31}[0-9a-f]{2}', str(node.get('fingerprint', ''))): raise ValueError('Invalid certificate fingerprint')
+    if node['id'] != node['fingerprint'].replace(':', '')[:32]: raise ValueError('Device identity does not match certificate')
+    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9.-]{0,62}', str(node.get('name', ''))): raise ValueError('Invalid host name')
+    if not re.fullmatch(r'[a-z_][a-z0-9_-]{0,31}', str(node.get('user', ''))): raise ValueError('Invalid account name')
+    addr = ipaddress.ip_address(node.get('ip', ''))
+    if addr.version != 4 or not any(addr in n for n in PRIVATE): raise ValueError('Only private physical LAN IPv4 addresses are supported')
+    # A routed (non-attached) peer is only ever one the user added by address.
+    if 'manual' in node and type(node['manual']) is not bool: raise ValueError('Invalid manual-peer flag')
+
+
 def validate_layout(layout):
     if not isinstance(layout, dict) or layout.get('version') != 1: raise ValueError('Unsupported layout format')
     nodes = layout.get('machines', [])
     if not isinstance(nodes, list) or not 1 <= len(nodes) <= 9: raise ValueError('Use between one and nine machines')
     ids, cells = set(), set()
     for node in nodes:
-        if not re.fullmatch(r'[0-9a-f]{32}', str(node.get('id', ''))): raise ValueError('Invalid device identity')
-        if not re.fullmatch(r'(?:[0-9a-f]{2}:){31}[0-9a-f]{2}', str(node.get('fingerprint', ''))): raise ValueError('Invalid certificate fingerprint')
-        if node['id'] != node['fingerprint'].replace(':', '')[:32]: raise ValueError('Device identity does not match certificate')
-        if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9.-]{0,62}', str(node.get('name', ''))): raise ValueError('Invalid host name')
-        if not re.fullmatch(r'[a-z_][a-z0-9_-]{0,31}', str(node.get('user', ''))): raise ValueError('Invalid account name')
-        addr = ipaddress.ip_address(node.get('ip', ''))
-        if addr.version != 4 or not any(addr in n for n in PRIVATE): raise ValueError('Only private physical LAN IPv4 addresses are supported')
+        check_node(node)
         x, y = node.get('x'), node.get('y')
         if type(x) is not int or type(y) is not int or not -2 <= x <= 2 or not -1 <= y <= 1: raise ValueError('Place machines inside the visible grid')
         if node['id'] in ids or (x,y) in cells: raise ValueError('Each machine needs its own grid position')
@@ -172,7 +228,9 @@ def render_config(layout, me):
     if local['fingerprint'] != me['fingerprint'] or local['ip'] != me['ip']: raise ValueError('This machine’s LAN address changed; scan again')
     links = interfaces()
     for node in nodes:
-        if node['id'] != me['id'] and not on_lan(node['ip'], links): raise ValueError(f"{node['name']} is outside this machine’s directly attached LAN")
+        if node['id'] != me['id'] and not peer_allowed(node, links):
+            if node.get('manual') is True: raise ValueError(f"{node['name']} is not reachable through this machine’s physical LAN interface")
+            raise ValueError(f"{node['name']} is outside this machine’s directly attached LAN")
     peers = neighbors(local, nodes)
     lines = ['# Managed by Omarchy Glide; use the Glide layout editor.',
              'port = 4242', 'capture_backend = "layer-shell"', 'emulation_backend = "wlroots"',
@@ -219,7 +277,7 @@ def restore_local(old):
 
 
 def ssh_args(peer, interactive=False, tty=False):
-    if not on_lan(peer['ip']): raise ValueError('Peer is not on a physical LAN')
+    if not peer_allowed(peer): raise ValueError('Peer is not on a physical LAN')
     trust = read_json(CONFIG/'trust.json', {}).get(peer['id'], {})
     alias = trust.get('alias', peer['ip'])
     if not re.fullmatch(r'[A-Za-z0-9_.:-]+', alias): raise ValueError('Invalid SSH host identity')
@@ -321,11 +379,87 @@ def deploy(layout):
     return layout
 
 
+def manual_peers():
+    """Peers the user added by address; malformed saved entries are ignored."""
+    rows = read_json(CONFIG/'manual-peers.json', [])
+    peers = []
+    for row in rows if isinstance(rows, list) else []:
+        try:
+            if not isinstance(row, dict): continue
+            check_node(row)
+            peers.append({k: row[k] for k in ('id', 'name', 'user', 'fingerprint', 'ip')} | {'manual': True})
+        except (ValueError, KeyError, TypeError): continue
+    return peers[:MAX_MANUAL]
+
+
+def save_manual_peer(peer):
+    check_node(peer)
+    kept = [p for p in manual_peers() if p['id'] != peer['id'] and p['ip'] != peer['ip']]
+    if len(kept) >= MAX_MANUAL: raise ValueError(f'At most {MAX_MANUAL} addresses can be saved; forget one first')
+    atomic(CONFIG/'manual-peers.json', json.dumps(kept + [dict(peer, manual=True)], indent=2))
+
+
+def firewall(action, ip):
+    """Add or remove the single-address UFW rule for a manual peer (sudo, interactive)."""
+    done = subprocess.run(['python3', str(Path(__file__).with_name('firewall.py')), action, str(ip)])
+    if done.returncode: raise ValueError('Could not update the firewall rule for that address')
+
+
+def forget_manual_peer(which):
+    """Drop a saved address by id, address or name; return the removed entry."""
+    peers = manual_peers()
+    match = next((p for p in peers if which in (p['id'], p['ip'], p['name'])), None)
+    if not match: raise ValueError('No saved address matches that machine')
+    if any(n.get('id') == match['id'] for n in model()['machines']):
+        raise ValueError(f"{match['name']} is still in the layout; remove it and apply the layout first")
+    # Rule first: if it cannot be removed the entry stays, so the forget can be retried.
+    firewall('remove-peer', match['ip'])
+    atomic(CONFIG/'manual-peers.json', json.dumps([p for p in peers if p['id'] != match['id']], indent=2))
+    return match
+
+
+def add_manual_peer(ip, user, say=print):
+    """Pair a peer on a routed private subnet without mDNS discovery.
+
+    The identity comes from the peer itself over SSH after interactive host-key
+    verification, never from the network. Nothing is saved unless every step passes.
+    """
+    me = identity()
+    links = interfaces()
+    address = parse_private_ip(ip, own={i['ip'] for i in links})
+    if not re.fullmatch(r'[a-z_][a-z0-9_-]{0,31}', str(user)): raise ValueError('Invalid account name')
+    if not peer_allowed({'ip': str(address), 'manual': True}, links):
+        raise ValueError('That address is not reached through this machine’s physical LAN interface (VPN and virtual routes are refused)')
+    peer = {'id': '', 'name': 'new peer', 'user': user, 'ip': str(address), 'manual': True}
+    say('SSH will ask you to verify that machine’s host identity and log in.\n')
+    if subprocess.run(ssh_args(peer, interactive=True) + ['true']).returncode:
+        raise ValueError('SSH authorization was not completed')
+    say('SSH verified. Installing Glide on the remote Omarchy desktop…')
+    install_remote(peer)
+    actual = remote(peer, 'identity')
+    found = {k: actual.get(k) for k in ('id', 'name', 'user', 'fingerprint')} | {'ip': str(address), 'manual': True}
+    check_node(found)
+    if actual.get('ip') != str(address): raise ValueError('That machine does not use the address you entered for Glide')
+    if found['user'] != user: raise ValueError('The remote account differs from the one you entered')
+    if found['id'] == me['id'] or found['fingerprint'] == me['fingerprint']: raise ValueError('That address is this machine')
+    firewall('add-peer', address)
+    save_manual_peer(found)
+    return found
+
+
+def manual_devices(me, links):
+    """Saved addresses as panel devices, flagged with whether they are reachable now."""
+    return [dict(p, active=True, reachable=peer_allowed(p, links)) for p in manual_peers() if p['id'] != me['id']]
+
+
 def inventory():
     me = identity()
     cached = read_json(CONFIG/'discovery.json', {})
     devices = cached.get('devices', []) if time.time()-cached.get('updated',0) < 20 else []
     devices = [d for d in devices if d.get('id') != me['id'] and on_lan(d.get('ip',''))]
+    links = interfaces()
+    seen = {d['id'] for d in devices}
+    devices += [d for d in manual_devices(me, links) if d['id'] not in seen]
     saved = model()
-    return {'self':me,'layout':saved,'devices':devices,'lan':interfaces(),
+    return {'self':me,'layout':saved,'devices':devices,'lan':links,
             'discovery_running':run(['systemctl','--user','is-active','--quiet','omarchy-glide-discovery.service']).returncode == 0}

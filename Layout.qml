@@ -74,6 +74,15 @@ Panel {
     if (!selectedMachine || selected === inventory.self.id) return
     Quickshell.execDetached(["xdg-terminal-exec", "--", "python3", networkHelper, "authorize", selected])
   }
+  // Both run in a terminal: SSH host-key and sudo prompts need one.
+  function addByAddress() {
+    if (busy) return
+    Quickshell.execDetached(["xdg-terminal-exec", "--", "python3", networkHelper, "add-peer"])
+  }
+  function forgetSelected() {
+    if (!selectedMachine || !selectedMachine.manual || selectedInLayout || busy) return
+    Quickshell.execDetached(["xdg-terminal-exec", "--", "python3", networkHelper, "remove-peer", selected])
+  }
   function saveLayout() {
     if (busy || !dirty) return
     message = "Checking SSH identities and updating the layout…"; failed = false
@@ -345,12 +354,14 @@ Panel {
         Item { Layout.fillWidth: true }
         Action { text: "Install & authorize"; enabled: !!root.selectedMachine && root.selected!==root.inventory.self.id && !root.busy; onClicked: root.authorize() }
         Action { text: "Remove"; enabled: root.selectedInLayout && root.selected!==root.inventory.self.id && !root.busy; onClicked: root.removeSelected() }
+        Action { visible: !!root.selectedMachine && !!root.selectedMachine.manual; text: "Forget"; enabled: !root.selectedInLayout && !root.busy; onClicked: root.forgetSelected() }
       }
       RowLayout {
         Layout.fillWidth: true
         Label { text: "Nearby Omarchy machines"; font.bold: true }
-        Label { text: "LAN only · active sessions"; color: Qt.alpha(Commons.Color.foreground,0.6) }
+        Label { text: "Private LAN · active sessions"; color: Qt.alpha(Commons.Color.foreground,0.6) }
         Item { Layout.fillWidth: true }
+        Action { text: "Add by address"; enabled: !root.busy; onClicked: root.addByAddress() }
         Action { text: scanProcess.running ? "Scanning…" : "Scan LAN"; enabled: !scanProcess.running && !root.busy; onClicked: root.scan() }
       }
       Flow {
@@ -361,12 +372,12 @@ Panel {
           model: root.inventory.devices
           Action {
             required property var modelData
-            text: modelData.name + " · " + modelData.ip
+            text: modelData.name + " · " + modelData.ip + (modelData.reachable === false ? " · no route" : "")
             selected: root.selected===modelData.id
             onClicked: root.selected=modelData.id
           }
         }
-        Label { visible: root.inventory.devices.length===0; text: "No other active Glide sessions found. Install Glide and log in on each machine." }
+        Label { visible: root.inventory.devices.length===0; text: "No other active Glide sessions found. Install Glide and log in on each machine, or use Add by address for another subnet." }
       }
       RowLayout {
         Layout.fillWidth: true
