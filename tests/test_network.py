@@ -258,6 +258,65 @@ class ManualPeerStoreTests(unittest.TestCase):
         self.assertEqual(g.manual_devices(ROUTED,LINKS),[])   # never lists this machine itself
 
 
+class ReceiverViewTests(unittest.TestCase):
+    """The machine on the far side of a routed link must accept the initiator too.
+
+    The initiator never carries a `manual` flag for itself, so before
+    `as_seen_by_peers` the far machine rejected the very layout it was sent and
+    `deploy` failed at the validate step for every routed pair.
+    """
+    FAR_LINKS=[{'name':'eth0','ip':ROUTED['ip'],'network':'10.1.0.0/24'}]
+    LAYOUT={'version':1,'machines':[VIC,dict(ROUTED,x=-1,manual=True)]}
+
+    def test_far_machine_rejects_the_layout_as_the_panel_wrote_it(self):
+        with patch.object(g,'interfaces',return_value=self.FAR_LINKS), routed(VIC['ip']):
+            with self.assertRaisesRegex(ValueError,'vic is outside this machine.s directly attached LAN'):
+                g.render_config(self.LAYOUT,ROUTED)
+
+    def test_far_machine_accepts_the_layout_as_sent(self):
+        sent=g.as_seen_by_peers(self.LAYOUT)
+        with patch.object(g,'interfaces',return_value=self.FAR_LINKS), routed(VIC['ip']):
+            config=g.tomllib.loads(g.render_config(sent,ROUTED))
+        self.assertEqual(config['bind_address'],ROUTED['ip'])
+        self.assertEqual(config['allowed_peer_ips'],[VIC['ip']])
+        self.assertEqual(config['peer_fingerprints'],{VIC['ip']:VIC['fingerprint']})
+
+    def test_far_machine_still_checks_its_own_route(self):
+        sent=g.as_seen_by_peers(self.LAYOUT)
+        with patch.object(g,'interfaces',return_value=self.FAR_LINKS):
+            for dev in ['tun0','wg0','']:
+                with self.subTest(dev=dev), routed(VIC['ip'],dev), self.assertRaisesRegex(ValueError,'physical LAN interface'):
+                    g.render_config(sent,ROUTED)
+
+    def test_flag_is_added_to_every_machine_and_the_input_is_untouched(self):
+        sent=g.as_seen_by_peers(self.LAYOUT)
+        self.assertTrue(all(n['manual'] is True for n in sent['machines']))
+        self.assertEqual(sent['version'],1)
+        self.assertNotIn('manual',self.LAYOUT['machines'][0])
+        g.validate_layout(sent)
+
+    def test_layout_without_an_address_added_machine_is_sent_unchanged(self):
+        plain={'version':1,'machines':[VIC,GUS]}
+        self.assertIs(g.as_seen_by_peers(plain),plain)
+        loose={'version':1,'machines':[VIC,dict(GUS,manual=False)]}
+        self.assertIs(g.as_seen_by_peers(loose),loose)
+
+    def test_deploy_validates_and_applies_the_flagged_layout_on_the_far_machine(self):
+        seen=[]
+        def remote(peer,action,payload=None):
+            seen.append((action,payload))
+            return {'identity':dict(ROUTED,active=True),'snapshot':{}}.get(action,True)
+        with patch.object(g,'identity',return_value=dict(VIC,active=True)), patch.object(g,'interfaces',return_value=LINKS), routed(ROUTED['ip']), \
+             patch.object(g,'model',return_value={'machines':[VIC]}), patch.object(g,'remote',remote), \
+             patch.object(g,'snapshot',return_value={}), patch.object(g,'apply_local') as apply:
+            g.deploy(self.LAYOUT)
+        sent=[p for a,p in seen if a in ('validate','apply')]
+        self.assertEqual([a for a,_ in seen if a in ('validate','apply')],['validate','apply'])
+        for payload in sent: self.assertTrue(all(n['manual'] is True for n in payload['machines']))
+        apply.assert_called_once_with(self.LAYOUT)          # this machine keeps its own, unflagged copy
+        self.assertNotIn('manual',apply.call_args[0][0]['machines'][0])
+
+
 class AddManualPeerTests(unittest.TestCase):
     """The add flow with SSH, install, firewall and the peer's identity all faked."""
     def setUp(self):

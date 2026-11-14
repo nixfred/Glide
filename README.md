@@ -85,6 +85,13 @@ What stays strict:
 
 Your router must allow UDP 4242 and SSH (TCP 22) between the two VLANs. Glide cannot change that.
 
+Two more things to know:
+
+- **The other machine's firewall.** Glide's remote install does not change that machine's firewall (on any network). If UFW is active there, run this on that machine, with this machine's address: `python3 ~/.config/omarchy/plugins/nixfred.glide/scripts/firewall.py add-peer <this machine's address>`.
+- **Where you apply layouts.** The address is saved on the machine where you chose **Add by address**, and you apply layouts from there. To apply from the other machine too, add the first one by address on it as well. Each machine checks its own route to every peer, so both ends must reach each other through their own physical network card.
+
+**Status:** the route checks, the layout hand-off and the firewall rules are covered by unit tests, and the route logic was also run against the real kernel in routed network namespaces. The full flow (SSH host-key prompt, remote install, `ufw`) has not yet been run across two physical VLANs; reports from real setups are welcome.
+
 ## Troubleshooting
 
 **Release a trapped pointer:** press Left Ctrl + Left Shift + Esc on the sending keyboard. To pause sharing from a terminal on either computer:

@@ -117,6 +117,22 @@ def peer_allowed(peer, links=None):
     return peer.get('manual') is True and routed_ok(ip, links)
 
 
+def as_seen_by_peers(layout):
+    """The layout as the other machines must judge it.
+
+    A machine added by address is routed from the initiator, and so is the
+    initiator from that machine (and anything on the initiator's LAN). Only the
+    initiator knows which machines were added by address, so when any were, every
+    machine goes out flagged `manual`. A receiver still tries `on_lan` first and
+    still checks its own route out of its own physical NIC (`peer_allowed`), so
+    the flag widens nothing it does not verify itself. A layout with no
+    address-added machine is sent exactly as it is.
+    """
+    nodes = layout.get('machines', [])
+    if not any(isinstance(n, dict) and n.get('manual') is True for n in nodes): return layout
+    return dict(layout, machines=[dict(n, manual=True) for n in nodes])
+
+
 def session_active():
     if run(['systemctl', '--user', 'is-active', '--quiet', 'graphical-session.target']).returncode: return False
     try:
@@ -350,7 +366,8 @@ def deploy(layout):
     peers = [n for n in nodes if n['id'] != me['id']]
     previous = model()
     removed = [n for n in previous['machines'] if n['id'] != me['id'] and n['id'] not in {x['id'] for x in nodes}]
-    targets = [(n, layout) for n in peers]
+    sent = as_seen_by_peers(layout)
+    targets = [(n, sent) for n in peers]
     # Removed machines become standalone, revoking their old trusted neighbors too.
     targets += [(n, {'version':1, 'machines':[dict(n,x=0,y=0)]}) for n in removed]
     backups = []
