@@ -4,6 +4,7 @@
 
 - Machines on a routed private subnet (another VLAN) can be added by address (issue #1, requested and specified by brhellman). **Add by address** in the panel runs `network.py add-peer` in a terminal: it verifies the SSH host key, installs Glide, reads the peer's name and certificate fingerprint over SSH, opens a UFW rule for that single address, and saves it to `manual-peers.json`. **Forget** removes the entry and the rule. Only RFC 1918 addresses are accepted, the route must leave through the physical interface Glide binds to, and discovery stays limited to directly attached networks.
 - `firewall.py` gained `add-peer` and `remove-peer`, and its default run restores the rules for saved addresses.
+- **Add by address** also opens the far machine's single-address UDP 4242 rule for this machine (over the same SSH session, so its `sudo` prompt works), and **Forget** removes it, best effort. Omarchy's UFW denies incoming traffic by default and the far machine's LAN rule only covers its own subnet, so before this a stock routed pair dropped the initiator's traffic until the user ran `firewall.py add-peer` by hand.
 - Layouts sent to the other machines now mark every machine as `manual` whenever one was added by address. Without it the far machine rejected the initiator as "outside this machine's directly attached LAN" and applying the layout failed at the validate step. The receiver still tries `on_lan` first and checks its own route out of its own physical interface.
 
 ## 0.2.4

@@ -239,6 +239,8 @@ class ManualPeerStoreTests(unittest.TestCase):
     def test_forget_removes_rule_before_record_and_keeps_layout_members(self):
         g.save_manual_peer(ROUTED)
         order=[]
+        for target,new in [('identity',lambda:VIC),('remote_firewall',lambda peer,a,ip:order.append(('far-'+a,peer['ip'],ip)))]:
+            patcher=patch.object(g,target,new); patcher.start(); self.addCleanup(patcher.stop)
         with patch.object(g,'model',return_value={'machines':[VIC,ROUTED]}), patch.object(g,'firewall') as fw:
             with self.assertRaisesRegex(ValueError,'still in the layout'): g.forget_manual_peer('routed')
             fw.assert_not_called(); self.assertEqual(len(g.manual_peers()),1)
@@ -247,8 +249,30 @@ class ManualPeerStoreTests(unittest.TestCase):
             self.assertEqual(len(g.manual_peers()),1)       # rule not removed, so the entry stays for a retry
         with patch.object(g,'model',return_value={'machines':[VIC]}), patch.object(g,'firewall',side_effect=lambda a,ip:order.append((a,ip))):
             self.assertEqual(g.forget_manual_peer(ROUTED['id'])['name'],'routed')
-        self.assertEqual(order,[('remove-peer',ROUTED['ip'])]); self.assertEqual(g.manual_peers(),[])
+        self.assertEqual(order,[('remove-peer',ROUTED['ip']),('far-remove-peer',ROUTED['ip'],VIC['ip'])]); self.assertEqual(g.manual_peers(),[])
         with self.assertRaisesRegex(ValueError,'No saved address'): g.forget_manual_peer('nobody')
+
+    def test_forget_still_forgets_when_the_far_machine_is_unreachable(self):
+        g.save_manual_peer(ROUTED)
+        said=[]
+        def unreachable(peer,action,ip): raise ValueError('routed: could not update its firewall rule for this machine')
+        with patch.object(g,'model',return_value={'machines':[VIC]}), patch.object(g,'firewall'), \
+             patch.object(g,'identity',lambda:VIC), patch.object(g,'remote_firewall',unreachable):
+            g.forget_manual_peer('routed',say=said.append)
+        self.assertEqual(g.manual_peers(),[])
+        self.assertIn('firewall.py remove-peer '+VIC['ip'],said[0])
+
+    def test_remote_firewall_sends_only_a_validated_address_over_a_tty(self):
+        seen=[]
+        class Done: returncode=0
+        with routed(ROUTED['ip']), patch.object(g,'interfaces',lambda:LINKS), \
+             patch.object(g.subprocess,'run',lambda argv,**k:(seen.append(argv),Done)[1]):
+            g.remote_firewall(dict(ROUTED,manual=True),'add-peer',' 10.0.0.10 ')
+            for bad in ('8.8.8.8','10.0.0.10; reboot','100.64.0.1'):
+                with self.subTest(bad=bad), self.assertRaises(ValueError): g.remote_firewall(dict(ROUTED,manual=True),'add-peer',bad)
+        self.assertEqual(len(seen),1)
+        self.assertIn('-tt',seen[0]); self.assertNotIn('BatchMode=yes',seen[0])
+        self.assertEqual(seen[0][-1],g.REMOTE_FIREWALL+' add-peer 10.0.0.10')
 
     def test_manual_devices_flag_reachability(self):
         g.save_manual_peer(ROUTED)
@@ -331,7 +355,8 @@ class AddManualPeerTests(unittest.TestCase):
         self.ssh=Done()
         for target,new in [('identity',lambda:VIC),('interfaces',lambda:LINKS),('routed_via',lambda ip,src:'eth0'),
                            ('install_remote',started('install')),('remote',lambda peer,action,payload=None:(self.calls.append(action),self.identity)[1]),
-                           ('firewall',lambda a,ip:self.calls.append('fw-'+a))]:
+                           ('firewall',lambda a,ip:self.calls.append('fw-'+a)),
+                           ('remote_firewall',lambda peer,a,ip:self.calls.append(('far-'+a,peer['ip'],ip)))]:
             patcher=patch.object(g,target,new); patcher.start(); self.addCleanup(patcher.stop)
         run=patch.object(g.subprocess,'run',lambda argv,**k:(self.calls.append('ssh'),self.ssh)[1]); run.start(); self.addCleanup(run.stop)
         say=lambda *a,**k:None
@@ -339,7 +364,7 @@ class AddManualPeerTests(unittest.TestCase):
 
     def test_success_verifies_ssh_installs_reads_identity_then_opens_firewall_then_saves(self):
         found=self.add()
-        self.assertEqual(self.calls,['ssh','install','identity','fw-add-peer'])
+        self.assertEqual(self.calls,['ssh','install','identity',('far-add-peer',ROUTED['ip'],VIC['ip']),'fw-add-peer'])
         self.assertEqual((found['id'],found['ip'],found['manual']),(ROUTED['id'],ROUTED['ip'],True))
         self.assertEqual([p['id'] for p in g.manual_peers()],[ROUTED['id']])
 
@@ -365,6 +390,11 @@ class AddManualPeerTests(unittest.TestCase):
                 self.identity=dict(ROUTED,active=True,**change); self.calls.clear()
                 with self.assertRaisesRegex(ValueError,message): self.add()
                 self.assertNotIn('fw-add-peer',self.calls); self.assertEqual(g.manual_peers(),[])
+
+    def test_far_firewall_failure_opens_nothing_here_and_saves_nothing(self):
+        def boom(peer,action,ip): raise ValueError('routed: could not update its firewall rule for this machine')
+        with patch.object(g,'remote_firewall',boom), self.assertRaisesRegex(ValueError,'its firewall'): self.add()
+        self.assertNotIn('fw-add-peer',self.calls); self.assertEqual(g.manual_peers(),[])
 
     def test_firewall_failure_saves_nothing(self):
         def boom(action,ip): raise ValueError('Could not update the firewall rule for that address')

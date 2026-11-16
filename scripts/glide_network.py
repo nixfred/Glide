@@ -20,6 +20,7 @@ STATE = Path.home() / '.local/state/omarchy/glide'
 SERVICE = 'omarchy-glide.service'
 PRIVATE = [ipaddress.ip_network(n) for n in ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16')]
 REMOTE = 'python3 .config/omarchy/plugins/nixfred.glide/scripts/network.py'
+REMOTE_FIREWALL = 'python3 .config/omarchy/plugins/nixfred.glide/scripts/firewall.py'
 PLUGIN = Path.home() / '.config/omarchy/plugins/nixfred.glide'
 MAX_MANUAL = 8
 
@@ -422,7 +423,20 @@ def firewall(action, ip):
     if done.returncode: raise ValueError('Could not update the firewall rule for that address')
 
 
-def forget_manual_peer(which):
+def remote_firewall(peer, action, ip):
+    """Add or remove the far machine's single-address rule for `ip` (this machine).
+
+    Omarchy's UFW denies incoming traffic by default, and the far machine's LAN
+    rule only covers its own subnet, so without this it drops the routed
+    initiator's UDP 4242. Runs over a TTY because `sudo` may prompt there.
+    """
+    command = f'{REMOTE_FIREWALL} {action} {parse_private_ip(ip)}'
+    try: done = subprocess.run(ssh_args(peer, interactive=True, tty=True) + [command], timeout=120)
+    except subprocess.TimeoutExpired: raise ValueError(f"{peer['name']}: timed out updating its firewall")
+    if done.returncode: raise ValueError(f"{peer['name']}: could not update its firewall rule for this machine")
+
+
+def forget_manual_peer(which, say=print):
     """Drop a saved address by id, address or name; return the removed entry."""
     peers = manual_peers()
     match = next((p for p in peers if which in (p['id'], p['ip'], p['name'])), None)
@@ -431,6 +445,12 @@ def forget_manual_peer(which):
         raise ValueError(f"{match['name']} is still in the layout; remove it and apply the layout first")
     # Rule first: if it cannot be removed the entry stays, so the forget can be retried.
     firewall('remove-peer', match['ip'])
+    # The far machine may be off or unreachable by now; its rule only admits this address.
+    own = identity()['ip']
+    try: remote_firewall(match, 'remove-peer', own)
+    except (ValueError, OSError) as error:
+        say(f"Could not remove {match['name']}’s rule for this machine ({error}). On {match['name']}, run: "
+            f"python3 ~/.config/omarchy/plugins/nixfred.glide/scripts/firewall.py remove-peer {own}")
     atomic(CONFIG/'manual-peers.json', json.dumps([p for p in peers if p['id'] != match['id']], indent=2))
     return match
 
@@ -459,6 +479,8 @@ def add_manual_peer(ip, user, say=print):
     if actual.get('ip') != str(address): raise ValueError('That machine does not use the address you entered for Glide')
     if found['user'] != user: raise ValueError('The remote account differs from the one you entered')
     if found['id'] == me['id'] or found['fingerprint'] == me['fingerprint']: raise ValueError('That address is this machine')
+    say('Opening UDP 4242 for this machine on the other one. It may ask for its sudo password…')
+    remote_firewall(found, 'add-peer', me['ip'])
     firewall('add-peer', address)
     save_manual_peer(found)
     return found

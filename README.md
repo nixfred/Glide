@@ -72,9 +72,9 @@ mDNS discovery does not cross a router, so a machine on a different private subn
 
 1. Choose **Add by address**. A terminal opens and asks for the machine's private IPv4 address and its SSH account.
 2. Verify the SSH host identity when prompted and log in. Glide installs itself there and reads the machine's name and certificate fingerprint over that authenticated SSH connection, not from the network.
-3. Glide adds a UFW rule that allows UDP 4242 from that one address only (it asks for `sudo`), then saves the machine so it appears with the discovered ones. Choose it, then **Add selected** and **Apply layout** as usual.
+3. Glide adds a UFW rule on each machine that allows UDP 4242 from the other one's address only (each may ask for `sudo`; the other machine's prompt comes over the same SSH session), then saves the machine so it appears with the discovered ones. Choose it, then **Add selected** and **Apply layout** as usual.
 
-Choose a saved address and **Forget** (after removing it from the layout and applying) to delete the entry and its firewall rule.
+Choose a saved address and **Forget** (after removing it from the layout and applying) to delete the entry and both firewall rules. If the other machine cannot be reached, the entry is still forgotten and the terminal prints the command to remove its rule there.
 
 What stays strict:
 
@@ -87,7 +87,7 @@ Your router must allow UDP 4242 and SSH (TCP 22) between the two VLANs. Glide ca
 
 Two more things to know:
 
-- **The other machine's firewall.** Glide's remote install does not change that machine's firewall (on any network). If UFW is active there, run this on that machine, with this machine's address: `python3 ~/.config/omarchy/plugins/nixfred.glide/scripts/firewall.py add-peer <this machine's address>`.
+- **The other machine's firewall.** Omarchy's UFW denies incoming traffic by default, and the other machine's LAN rule covers only its own subnet, so **Add by address** also opens UDP 4242 there for this machine's address (only that rule; the remote install itself still leaves the firewall alone). If that step was skipped or the address changed, run this on that machine, with this machine's address: `python3 ~/.config/omarchy/plugins/nixfred.glide/scripts/firewall.py add-peer <this machine's address>`.
 - **Where you apply layouts.** The address is saved on the machine where you chose **Add by address**, and you apply layouts from there. To apply from the other machine too, add the first one by address on it as well. Each machine checks its own route to every peer, so both ends must reach each other through their own physical network card.
 
 **Status:** the route checks, the layout hand-off and the firewall rules are covered by unit tests, and the route logic was also run against the real kernel in routed network namespaces. The full flow (SSH host-key prompt, remote install, `ufw`) has not yet been run across two physical VLANs; reports from real setups are welcome.
